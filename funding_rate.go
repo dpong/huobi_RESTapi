@@ -24,20 +24,25 @@ type FundingResponse struct {
 	Ts int64 `json:"ts"`
 }
 
-func (p *Client) Fundings(symbol string, pages int) (futures *FundingResponse) {
+func (p *Client) Fundings(symbol string, pages int) (futures *FundingResponse, err error) {
 	params := make(map[string]string)
 	params["page_size"] = fmt.Sprintf("%v", pages)
 	params["contract_code"] = symbol
-	res, err := p.sendRequest("swap", http.MethodGet, "/linear-swap-api/v1/swap_historical_funding_rate", &params, false)
+	body, err := json.Marshal(params)
 	if err != nil {
 		p.Logger.Println(err)
-		return nil
+		return nil, err
+	}
+	res, err := p.sendRequest("swap", http.MethodGet, "/linear-swap-api/v1/swap_historical_funding_rate", body, &params, false)
+	if err != nil {
+		p.Logger.Println(err)
+		return nil, err
 	}
 	// in Close()
 	err = decode(res, &futures)
 	if err != nil {
 		p.Logger.Println(err)
-		return nil
+		return nil, err
 	}
-	return futures
+	return futures, nil
 }

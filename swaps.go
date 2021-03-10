@@ -2,6 +2,8 @@ package huobiapi
 
 import (
 	"net/http"
+	"strconv"
+	"strings"
 )
 
 type SwapsResponse struct {
@@ -18,19 +20,28 @@ type SwapsResponse struct {
 	Ts int64 `json:"ts"`
 }
 
-func (p *Client) Swaps() (swaps *SwapsResponse) {
-	res, err := p.sendRequest("swap", http.MethodGet, "/linear-swap-api/v1/swap_contract_info", nil, false)
+func (p *Client) Swaps(mode string) (swaps *SwapsResponse, err error) {
+	params := make(map[string]string)
+	if mode != "" {
+		params["support_margin_mode"] = strings.ToLower(mode)
+	}
+	body, err := json.Marshal(params)
 	if err != nil {
 		p.Logger.Println(err)
-		return nil
+		return nil, err
+	}
+	res, err := p.sendRequest("swap", http.MethodGet, "/linear-swap-api/v1/swap_contract_info", body, &params, false)
+	if err != nil {
+		p.Logger.Println(err)
+		return nil, err
 	}
 	// in Close()
 	err = decode(res, &swaps)
 	if err != nil {
 		p.Logger.Println(err)
-		return nil
+		return nil, err
 	}
-	return swaps
+	return swaps, nil
 }
 
 type SwapOpenInterestResponse struct {
@@ -49,7 +60,7 @@ type SwapOpenInterestResponse struct {
 }
 
 func (p *Client) SwapOpenInterests() (swaps *SwapOpenInterestResponse) {
-	res, err := p.sendRequest("swap", http.MethodGet, "/linear-swap-api/v1/swap_open_interest", nil, false)
+	res, err := p.sendRequest("swap", http.MethodGet, "/linear-swap-api/v1/swap_open_interest", nil, nil, false)
 	if err != nil {
 		p.Logger.Println(err)
 		return nil
@@ -78,7 +89,7 @@ type SwapNextFundingResponse struct {
 }
 
 func (p *Client) SwapNextFundings() (swaps *SwapNextFundingResponse) {
-	res, err := p.sendRequest("swap", http.MethodGet, "/linear-swap-api/v1/swap_batch_funding_rate", nil, false)
+	res, err := p.sendRequest("swap", http.MethodGet, "/linear-swap-api/v1/swap_batch_funding_rate", nil, nil, false)
 	if err != nil {
 		p.Logger.Println(err)
 		return nil
@@ -123,19 +134,128 @@ type SwapCrossMarginContractDetail struct {
 	AdjustFactor     float64 `json:"adjust_factor"`
 }
 
-func (p *Client) SwapAccountInfo() (swaps *SwapCrossMarginAccountInfoResponse) {
-	res, err := p.sendRequest("swap", http.MethodPost, "/linear-swap-api/v1/swap_cross_account_info", nil, true)
+func (p *Client) SwapAccountInfo() (swaps *SwapCrossMarginAccountInfoResponse, err error) {
+	res, err := p.sendRequest("swap", http.MethodPost, "/linear-swap-api/v1/swap_cross_account_info", nil, nil, true)
 	if err != nil {
 		p.Logger.Println(err)
-		return nil
+		return nil, err
 	}
 	// in Close()
 	err = decode(res, &swaps)
 	if err != nil {
 		p.Logger.Println(err)
-		return nil
+		return nil, err
 	}
-	return swaps
+	return swaps, nil
+}
+
+type SwapCrossMarginAccountPositionResponse struct {
+	Status string `json:"status"`
+	Data   struct {
+		Positions []struct {
+			Symbol         string  `json:"symbol"`
+			ContractCode   string  `json:"contract_code"`
+			Volume         float64 `json:"volume"`
+			Available      float64 `json:"available"`
+			Frozen         float64 `json:"frozen"`
+			CostOpen       float64 `json:"cost_open"`
+			CostHold       float64 `json:"cost_hold"`
+			ProfitUnreal   float64 `json:"profit_unreal"`
+			ProfitRate     float64 `json:"profit_rate"`
+			LeverRate      int     `json:"lever_rate"`
+			PositionMargin float64 `json:"position_margin"`
+			Direction      string  `json:"direction"`
+			Profit         float64 `json:"profit"`
+			LastPrice      float64 `json:"last_price"`
+			MarginAsset    string  `json:"margin_asset"`
+			MarginMode     string  `json:"margin_mode"`
+			MarginAccount  string  `json:"margin_account"`
+		} `json:"positions"`
+		MarginMode        string  `json:"margin_mode"`
+		MarginAccount     string  `json:"margin_account"`
+		MarginAsset       string  `json:"margin_asset"`
+		MarginBalance     float64 `json:"margin_balance"`
+		MarginStatic      float64 `json:"margin_static"`
+		MarginPosition    float64 `json:"margin_position"`
+		MarginFrozen      float64 `json:"margin_frozen"`
+		ProfitReal        float64 `json:"profit_real"`
+		ProfitUnreal      float64 `json:"profit_unreal"`
+		WithdrawAvailable float64 `json:"withdraw_available"`
+		RiskRate          float64 `json:"risk_rate"`
+		ContractDetail    []struct {
+			Symbol           string  `json:"symbol"`
+			ContractCode     string  `json:"contract_code"`
+			MarginPosition   float64 `json:"margin_position"`
+			MarginFrozen     float64 `json:"margin_frozen"`
+			MarginAvailable  float64 `json:"margin_available"`
+			ProfitUnreal     float64 `json:"profit_unreal"`
+			LiquidationPrice float64 `json:"liquidation_price"`
+			LeverRate        int     `json:"lever_rate"`
+			AdjustFactor     float64 `json:"adjust_factor"`
+		} `json:"contract_detail"`
+	} `json:"data"`
+	Ts int64 `json:"ts"`
+}
+
+func (p *Client) SwapAccountPositionInfo() (swaps *SwapCrossMarginAccountPositionResponse, err error) {
+	params := make(map[string]string)
+	params["margin_account"] = "USDT"
+	body, err := json.Marshal(params)
+	if err != nil {
+		p.Logger.Println(err)
+		return nil, err
+	}
+	res, err := p.sendRequest("swap", http.MethodPost, "/linear-swap-api/v1/swap_cross_account_position_info", body, &params, true)
+	if err != nil {
+		p.Logger.Println(err)
+		return nil, err
+	}
+	// in Close()
+	err = decode(res, &swaps)
+	if err != nil {
+		p.Logger.Println(err)
+		return nil, err
+	}
+	return swaps, nil
+}
+
+type SwapCrossMarginPositionResponse struct {
+	Status string `json:"status"`
+	Data   []struct {
+		Symbol         string  `json:"symbol"`
+		ContractCode   string  `json:"contract_code"`
+		Volume         float64 `json:"volume"`
+		Available      float64 `json:"available"`
+		Frozen         float64 `json:"frozen"`
+		CostOpen       float64 `json:"cost_open"`
+		CostHold       float64 `json:"cost_hold"`
+		ProfitUnreal   float64 `json:"profit_unreal"`
+		ProfitRate     float64 `json:"profit_rate"`
+		LeverRate      int     `json:"lever_rate"`
+		PositionMargin float64 `json:"position_margin"`
+		Direction      string  `json:"direction"`
+		Profit         float64 `json:"profit"`
+		LastPrice      float64 `json:"last_price"`
+		MarginAsset    string  `json:"margin_asset"`
+		MarginMode     string  `json:"margin_mode"`
+		MarginAccount  string  `json:"margin_account"`
+	} `json:"data"`
+	Ts int64 `json:"ts"`
+}
+
+func (p *Client) SwapPositionInfo() (swaps *SwapCrossMarginPositionResponse, err error) {
+	res, err := p.sendRequest("swap", http.MethodPost, "/linear-swap-api/v1/swap_cross_position_info", nil, nil, true)
+	if err != nil {
+		p.Logger.Println(err)
+		return nil, err
+	}
+	// in Close()
+	err = decode(res, &swaps)
+	if err != nil {
+		p.Logger.Println(err)
+		return nil, err
+	}
+	return swaps, nil
 }
 
 type SwapCrossMarginLeverages struct {
@@ -149,7 +269,40 @@ type SwapCrossMarginLeverages struct {
 }
 
 func (p *Client) SwapLeverages() (swaps *SwapCrossMarginLeverages, err error) {
-	res, err := p.sendRequest("swap", http.MethodPost, "/linear-swap-api/v1/swap_cross_available_level_rate", nil, true)
+	res, err := p.sendRequest("swap", http.MethodPost, "/linear-swap-api/v1/swap_cross_available_level_rate", nil, nil, true)
+	if err != nil {
+		p.Logger.Println(err)
+		return nil, err
+	}
+	// in Close()
+	err = decode(res, &swaps)
+	if err != nil {
+		p.Logger.Println(err)
+		return nil, err
+	}
+	return swaps, nil
+}
+
+type SwapAssetTransferResponse struct {
+	Code    int    `json:"code"`
+	Data    int    `json:"data"`
+	Message string `json:"message"`
+	Success bool   `json:"success"`
+}
+
+func (p *Client) SwapAssetTransfer(from, to, currency, marginAccount string, amount float64) (swaps *SwapAssetTransferResponse, err error) {
+	params := make(map[string]string)
+	params["from"] = strings.ToLower(from) //spot、linear-swap
+	params["to"] = strings.ToLower(to)
+	params["currency"] = currency
+	params["margin-account"] = marginAccount //e.g. BTC-USDT，ETH-USDT, USDT(cross margin)
+	params["amount"] = strconv.FormatFloat(amount, 'f', 8, 64)
+	body, err := json.Marshal(params)
+	if err != nil {
+		p.Logger.Println(err)
+		return nil, err
+	}
+	res, err := p.sendRequest("spot", http.MethodPost, "/v2/account/transfer", body, &params, true)
 	if err != nil {
 		p.Logger.Println(err)
 		return nil, err

@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"strings"
 	"time"
 
 	jsoniter "github.com/json-iterator/go"
@@ -40,7 +41,7 @@ func New(key, secret, subaccount string, log *log.Logger) *Client {
 	}
 }
 
-func (p *Client) newRequest(product, method, spath string, params *map[string]string, auth bool) (*http.Request, error) {
+func (p *Client) newRequest(product, method, spath string, body []byte, params *map[string]string, auth bool) (*http.Request, error) {
 	q := url.Values{}
 	if params != nil {
 		for k, v := range *params {
@@ -52,7 +53,7 @@ func (p *Client) newRequest(product, method, spath string, params *map[string]st
 	if err != nil {
 		return nil, err
 	}
-	req, err := http.NewRequest(method, url, nil)
+	req, err := http.NewRequest(method, url, strings.NewReader(string(body)))
 	if err != nil {
 		p.Logger.Println(err)
 		return nil, err
@@ -67,8 +68,8 @@ func MakeHMAC(secret, body string) string {
 	return hex.EncodeToString(mac.Sum(nil))
 }
 
-func (c *Client) sendRequest(product, method, spath string, params *map[string]string, auth bool) (*http.Response, error) {
-	req, err := c.newRequest(product, method, spath, params, auth)
+func (c *Client) sendRequest(product, method, spath string, body []byte, params *map[string]string, auth bool) (*http.Response, error) {
+	req, err := c.newRequest(product, method, spath, body, params, auth)
 	if err != nil {
 		c.Logger.Println(err)
 		return nil, err
@@ -114,6 +115,11 @@ func (c *Client) sign(host, method, spath string, q *url.Values, auth bool) (str
 		buffer.WriteString("https://")
 		buffer.WriteString(host)
 		buffer.WriteString(spath)
+		if (*q).Encode() == "" {
+			return buffer.String(), nil
+		}
+		buffer.WriteString("?")
+		buffer.WriteString(q.Encode())
 		return buffer.String(), nil
 	}
 	if c.key != "" {

@@ -14,7 +14,7 @@ type GetAllAccountsResponse struct {
 }
 
 func (p *Client) GetAllAccounts() (swaps *GetAllAccountsResponse, err error) {
-	res, err := p.sendRequest("spot", http.MethodGet, "/v1/account/accounts", nil, true)
+	res, err := p.sendRequest("spot", http.MethodGet, "/v1/account/accounts", nil, nil, true)
 	if err != nil {
 		p.Logger.Println(err)
 		return nil, err
