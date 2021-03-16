@@ -103,7 +103,6 @@ func (p *Client) SwapNextFundings() (swaps *SwapNextFundingResponse) {
 	return swaps
 }
 
-
 type SwapCrossMarginLeverages struct {
 	Status string `json:"status"`
 	Data   []struct {
@@ -149,6 +148,50 @@ func (p *Client) SwapAssetTransfer(from, to, currency, marginAccount string, amo
 		return nil, err
 	}
 	res, err := p.sendRequest("spot", http.MethodPost, "/v2/account/transfer", body, &params, true)
+	if err != nil {
+		p.Logger.Println(err)
+		return nil, err
+	}
+	// in Close()
+	err = decode(res, &swaps)
+	if err != nil {
+		p.Logger.Println(err)
+		return nil, err
+	}
+	return swaps, nil
+}
+
+type FinancialRecordResponse struct {
+	Status string `json:"status"`
+	Data   struct {
+		FinancialRecord []struct {
+			ID                int     `json:"id"`
+			Type              int     `json:"type"`
+			Amount            float64 `json:"amount"`
+			Ts                int64   `json:"ts"`
+			ContractCode      string  `json:"contract_code"`
+			Asset             string  `json:"asset"`
+			MarginAccount     string  `json:"margin_account"`
+			FaceMarginAccount string  `json:"face_margin_account"`
+		} `json:"financial_record"`
+		RemainSize int `json:"remain_size"`
+		NextID     int `json:"next_id"`
+	} `json:"data"`
+	Ts int64 `json:"ts"`
+}
+
+//30,31 are funding fee
+func (p *Client) FinancilRecords(marginAccount, symbol, types string) (swaps *FinancialRecordResponse, err error) {
+	params := make(map[string]string)
+	params["margin_account"] = strings.ToUpper(marginAccount)
+	params["contract_code"] = strings.ToUpper(symbol)
+	params["type"] = types
+	body, err := json.Marshal(params)
+	if err != nil {
+		p.Logger.Println(err)
+		return nil, err
+	}
+	res, err := p.sendRequest("swap", http.MethodPost, "/linear-swap-api/v1/swap_financial_record_exact", body, nil, true)
 	if err != nil {
 		p.Logger.Println(err)
 		return nil, err
