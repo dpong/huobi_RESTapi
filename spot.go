@@ -33,19 +33,19 @@ type SpotsResponse struct {
 	} `json:"data"`
 }
 
-func (p *Client) Spots() (swaps *SpotsResponse, err error) {
+func (p *Client) Spots() (spots *SpotsResponse, err error) {
 	res, err := p.sendRequest("spot", http.MethodGet, "/v1/common/symbols", nil, nil, false)
 	if err != nil {
 		p.Logger.Println(err)
 		return nil, err
 	}
 	// in Close()
-	err = decode(res, &swaps)
+	err = decode(res, &spots)
 	if err != nil {
 		p.Logger.Println(err)
 		return nil, err
 	}
-	return swaps, nil
+	return spots, nil
 }
 
 type GetAllAccountsResponse struct {
