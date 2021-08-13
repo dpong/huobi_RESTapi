@@ -61,3 +61,41 @@ func (p *Client) SpotCancelOrder(orderID string) (spot *SpotPlaceOrderResponse, 
 	}
 	return spot, nil
 }
+
+type GetSpotOrderDetailResponse struct {
+	Data struct {
+		ID               int    `json:"id"`
+		Symbol           string `json:"symbol"`
+		AccountID        int    `json:"account-id"`
+		Amount           string `json:"amount"`
+		Price            string `json:"price"`
+		CreatedAt        int    `json:"created-at"`
+		Type             string `json:"type"`
+		FilledAmount     string `json:"filled-amount"`
+		FilledCashAmount string `json:"filled-cash-amount"`
+		FilledFees       string `json:"filled-fees"`
+		FinishedAt       int    `json:"finished-at"`
+		UserID           string `json:"user-id"`
+		Source           string `json:"source"`
+		State            string `json:"state"`
+		CanceledAt       int    `json:"canceled-at"`
+	} `json:"data"`
+}
+
+func (p *Client) GetSpotOrderDetail(orderID string) (spot *GetSpotOrderDetailResponse, err error) {
+	var buffer bytes.Buffer
+	buffer.WriteString("/v1/order/orders/")
+	buffer.WriteString(orderID)
+	res, err := p.sendRequest("spot", http.MethodGet, buffer.String(), nil, nil, true)
+	if err != nil {
+		p.Logger.Println(err)
+		return nil, err
+	}
+	// in Close()
+	err = decode(res, &spot)
+	if err != nil {
+		p.Logger.Println(err)
+		return nil, err
+	}
+	return spot, nil
+}
