@@ -36,13 +36,11 @@ type SpotsResponse struct {
 func (p *Client) Spots() (spots *SpotsResponse, err error) {
 	res, err := p.sendRequest("spot", http.MethodGet, "/v1/common/symbols", nil, nil, false)
 	if err != nil {
-		p.Logger.Println(err)
 		return nil, err
 	}
 	// in Close()
 	err = decode(res, &spots)
 	if err != nil {
-		p.Logger.Println(err)
 		return nil, err
 	}
 	return spots, nil
@@ -60,13 +58,11 @@ type GetAllAccountsResponse struct {
 func (p *Client) GetAllAccounts() (swaps *GetAllAccountsResponse, err error) {
 	res, err := p.sendRequest("spot", http.MethodGet, "/v1/account/accounts", nil, nil, true)
 	if err != nil {
-		p.Logger.Println(err)
 		return nil, err
 	}
 	// in Close()
 	err = decode(res, &swaps)
 	if err != nil {
-		p.Logger.Println(err)
 		return nil, err
 	}
 	return swaps, nil
@@ -95,13 +91,11 @@ func (p *Client) GetAccountData(id int) (swaps *GetAccountDataResponse, err erro
 	buffer.WriteString("/balance")
 	res, err := p.sendRequest("spot", http.MethodGet, buffer.String(), nil, nil, true)
 	if err != nil {
-		p.Logger.Println(err)
 		return nil, err
 	}
 	// in Close()
 	err = decode(res, &swaps)
 	if err != nil {
-		p.Logger.Println(err)
 		return nil, err
 	}
 	return swaps, nil

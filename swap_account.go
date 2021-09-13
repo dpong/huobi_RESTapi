@@ -39,13 +39,11 @@ type ContractDetailData struct {
 func (p *Client) SwapAccountInfo() (swaps *SwapCrossAccountInfoResponse, err error) {
 	res, err := p.sendRequest("swap", http.MethodPost, "/linear-swap-api/v1/swap_cross_account_info", nil, nil, true)
 	if err != nil {
-		p.Logger.Println(err)
 		return nil, err
 	}
 	// in Close()
 	err = decode(res, &swaps)
 	if err != nil {
-		p.Logger.Println(err)
 		return nil, err
 	}
 	return swaps, nil
@@ -76,18 +74,15 @@ func (p *Client) SwapAccountPositionInfo() (swaps *SwapCrossAccountPositionRespo
 	params["margin_account"] = "USDT"
 	body, err := json.Marshal(params)
 	if err != nil {
-		p.Logger.Println(err)
 		return nil, err
 	}
 	res, err := p.sendRequest("swap", http.MethodPost, "/linear-swap-api/v1/swap_cross_account_position_info", body, &params, true)
 	if err != nil {
-		p.Logger.Println(err)
 		return nil, err
 	}
 	// in Close()
 	err = decode(res, &swaps)
 	if err != nil {
-		p.Logger.Println(err)
 		return nil, err
 	}
 	return swaps, nil
@@ -102,13 +97,11 @@ type SwapPositionResponse struct {
 func (p *Client) SwapPositionInfo() (swaps *SwapPositionResponse, err error) {
 	res, err := p.sendRequest("swap", http.MethodPost, "/linear-swap-api/v1/swap_cross_position_info", nil, nil, true)
 	if err != nil {
-		p.Logger.Println(err)
 		return nil, err
 	}
 	// in Close()
 	err = decode(res, &swaps)
 	if err != nil {
-		p.Logger.Println(err)
 		return nil, err
 	}
 	return swaps, nil
@@ -164,18 +157,15 @@ func (p *Client) SwapIsoAccountPositionInfo(symbol string) (swaps *SwapIsoAccoun
 	params["contract_code"] = strings.ToUpper(symbol)
 	body, err := json.Marshal(params)
 	if err != nil {
-		p.Logger.Println(err)
 		return nil, err
 	}
 	res, err := p.sendRequest("swap", http.MethodPost, "/linear-swap-api/v1/swap_account_position_info", body, nil, true)
 	if err != nil {
-		p.Logger.Println(err)
 		return nil, err
 	}
 	// in Close()
 	err = decode(res, &swaps)
 	if err != nil {
-		p.Logger.Println(err)
 		return nil, err
 	}
 	return swaps, nil
@@ -210,13 +200,11 @@ type SwapIsoAccountData struct {
 func (p *Client) SwapIsoAccountInfo() (swaps *SwapIsoAccountResponse, err error) {
 	res, err := p.sendRequest("swap", http.MethodPost, "/linear-swap-api/v1/swap_account_info", nil, nil, true)
 	if err != nil {
-		p.Logger.Println(err)
 		return nil, err
 	}
 	// in Close()
 	err = decode(res, &swaps)
 	if err != nil {
-		p.Logger.Println(err)
 		return nil, err
 	}
 	return swaps, nil
@@ -225,13 +213,11 @@ func (p *Client) SwapIsoAccountInfo() (swaps *SwapIsoAccountResponse, err error)
 func (p *Client) SwapIsoPositionInfo() (swaps *SwapPositionResponse, err error) {
 	res, err := p.sendRequest("swap", http.MethodPost, "/linear-swap-api/v1/swap_position_info", nil, nil, true)
 	if err != nil {
-		p.Logger.Println(err)
 		return nil, err
 	}
 	// in Close()
 	err = decode(res, &swaps)
 	if err != nil {
-		p.Logger.Println(err)
 		return nil, err
 	}
 	return swaps, nil

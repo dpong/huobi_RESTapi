@@ -43,18 +43,15 @@ func (p *Client) SwapPlaceOrder(mode string, opts SwapPlaceOrderOpts) (swaps *Sw
 	}
 	body, err := json.Marshal(opts)
 	if err != nil {
-		p.Logger.Println(err)
 		return nil, err
 	}
 	res, err := p.sendRequest("swap", http.MethodPost, path, body, nil, true)
 	if err != nil {
-		p.Logger.Println(err)
 		return nil, err
 	}
 	// in Close()
 	err = decode(res, &swaps)
 	if err != nil {
-		p.Logger.Println(err)
 		return nil, err
 	}
 	return swaps, nil
@@ -91,18 +88,15 @@ func (p *Client) SwapCancelOrder(mode string, opts SwapCancelOrderOpts) (swaps *
 	}
 	body, err := json.Marshal(opts)
 	if err != nil {
-		p.Logger.Println(err)
 		return nil, err
 	}
 	res, err := p.sendRequest("swap", http.MethodPost, path, body, nil, true)
 	if err != nil {
-		p.Logger.Println(err)
 		return nil, err
 	}
 	// in Close()
 	err = decode(res, &swaps)
 	if err != nil {
-		p.Logger.Println(err)
 		return nil, err
 	}
 	return swaps, nil
@@ -156,18 +150,15 @@ func (p *Client) SwapQueryOrder(mode string, opts SwapCancelOrderOpts) (swaps *S
 	}
 	body, err := json.Marshal(opts)
 	if err != nil {
-		p.Logger.Println(err)
 		return nil, err
 	}
 	res, err := p.sendRequest("swap", http.MethodPost, path, body, nil, true)
 	if err != nil {
-		p.Logger.Println(err)
 		return nil, err
 	}
 	// in Close()
 	err = decode(res, &swaps)
 	if err != nil {
-		p.Logger.Println(err)
 		return nil, err
 	}
 	return swaps, nil

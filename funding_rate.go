@@ -30,18 +30,15 @@ func (p *Client) Fundings(symbol string, pages int) (futures *FundingResponse, e
 	params["contract_code"] = symbol
 	body, err := json.Marshal(params)
 	if err != nil {
-		p.Logger.Println(err)
 		return nil, err
 	}
 	res, err := p.sendRequest("swap", http.MethodGet, "/linear-swap-api/v1/swap_historical_funding_rate", body, &params, false)
 	if err != nil {
-		p.Logger.Println(err)
 		return nil, err
 	}
 	// in Close()
 	err = decode(res, &futures)
 	if err != nil {
-		p.Logger.Println(err)
 		return nil, err
 	}
 	return futures, nil

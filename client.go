@@ -25,7 +25,6 @@ type Client struct {
 	key, secret string
 	subaccount  string
 	HTTPC       *http.Client
-	Logger      *log.Logger
 }
 
 func New(key, secret, subaccount string, log *log.Logger) *Client {
@@ -37,7 +36,6 @@ func New(key, secret, subaccount string, log *log.Logger) *Client {
 		secret:     secret,
 		subaccount: subaccount,
 		HTTPC:      hc,
-		Logger:     log,
 	}
 }
 
@@ -55,7 +53,6 @@ func (p *Client) newRequest(product, method, spath string, body []byte, params *
 	}
 	req, err := http.NewRequest(method, url, strings.NewReader(string(body)))
 	if err != nil {
-		p.Logger.Println(err)
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
@@ -71,12 +68,10 @@ func MakeHMAC(secret, body string) string {
 func (c *Client) sendRequest(product, method, spath string, body []byte, params *map[string]string, auth bool) (*http.Response, error) {
 	req, err := c.newRequest(product, method, spath, body, params, auth)
 	if err != nil {
-		c.Logger.Println(err)
 		return nil, err
 	}
 	res, err := c.HTTPC.Do(req)
 	if err != nil {
-		c.Logger.Println(err)
 		return nil, err
 	}
 	if res.StatusCode != 200 {
@@ -84,8 +79,7 @@ func (c *Client) sendRequest(product, method, spath string, body []byte, params 
 		buf := new(bytes.Buffer)
 		buf.ReadFrom(res.Body)
 		s := buf.String()
-		c.Logger.Println(s)
-		return nil, fmt.Errorf("faild to get data. status: %s", res.Status)
+		return nil, fmt.Errorf("faild to get data. with error: %s", s)
 	}
 	return res, nil
 }

@@ -26,18 +26,15 @@ type SpotPlaceOrderOpts struct {
 func (p *Client) SpotPlaceOrder(opts SpotPlaceOrderOpts) (spot *SpotPlaceOrderResponse, err error) {
 	body, err := json.Marshal(opts)
 	if err != nil {
-		p.Logger.Println(err)
 		return nil, err
 	}
 	res, err := p.sendRequest("spot", http.MethodPost, "/v1/order/orders/place", body, nil, true)
 	if err != nil {
-		p.Logger.Println(err)
 		return nil, err
 	}
 	// in Close()
 	err = decode(res, &spot)
 	if err != nil {
-		p.Logger.Println(err)
 		return nil, err
 	}
 	return spot, nil
@@ -50,13 +47,11 @@ func (p *Client) SpotCancelOrder(orderID string) (spot *SpotPlaceOrderResponse, 
 	buffer.WriteString("/submitcancel")
 	res, err := p.sendRequest("spot", http.MethodPost, buffer.String(), nil, nil, true)
 	if err != nil {
-		p.Logger.Println(err)
 		return nil, err
 	}
 	// in Close()
 	err = decode(res, &spot)
 	if err != nil {
-		p.Logger.Println(err)
 		return nil, err
 	}
 	return spot, nil
@@ -88,13 +83,11 @@ func (p *Client) GetSpotOrderDetail(orderID string) (spot *GetSpotOrderDetailRes
 	buffer.WriteString(orderID)
 	res, err := p.sendRequest("spot", http.MethodGet, buffer.String(), nil, nil, true)
 	if err != nil {
-		p.Logger.Println(err)
 		return nil, err
 	}
 	// in Close()
 	err = decode(res, &spot)
 	if err != nil {
-		p.Logger.Println(err)
 		return nil, err
 	}
 	return spot, nil

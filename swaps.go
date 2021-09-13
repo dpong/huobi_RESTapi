@@ -27,18 +27,15 @@ func (p *Client) Swaps(mode string) (swaps *SwapsResponse, err error) {
 	}
 	body, err := json.Marshal(params)
 	if err != nil {
-		p.Logger.Println(err)
 		return nil, err
 	}
 	res, err := p.sendRequest("swap", http.MethodGet, "/linear-swap-api/v1/swap_contract_info", body, &params, false)
 	if err != nil {
-		p.Logger.Println(err)
 		return nil, err
 	}
 	// in Close()
 	err = decode(res, &swaps)
 	if err != nil {
-		p.Logger.Println(err)
 		return nil, err
 	}
 	return swaps, nil
@@ -62,13 +59,11 @@ type SwapOpenInterestResponse struct {
 func (p *Client) SwapOpenInterests() (swaps *SwapOpenInterestResponse) {
 	res, err := p.sendRequest("swap", http.MethodGet, "/linear-swap-api/v1/swap_open_interest", nil, nil, false)
 	if err != nil {
-		p.Logger.Println(err)
 		return nil
 	}
 	// in Close()
 	err = decode(res, &swaps)
 	if err != nil {
-		p.Logger.Println(err)
 		return nil
 	}
 	return swaps
@@ -91,13 +86,11 @@ type SwapNextFundingResponse struct {
 func (p *Client) SwapNextFundings() (swaps *SwapNextFundingResponse) {
 	res, err := p.sendRequest("swap", http.MethodGet, "/linear-swap-api/v1/swap_batch_funding_rate", nil, nil, false)
 	if err != nil {
-		p.Logger.Println(err)
 		return nil
 	}
 	// in Close()
 	err = decode(res, &swaps)
 	if err != nil {
-		p.Logger.Println(err)
 		return nil
 	}
 	return swaps
@@ -116,13 +109,11 @@ type SwapCrossMarginLeverages struct {
 func (p *Client) SwapLeverages() (swaps *SwapCrossMarginLeverages, err error) {
 	res, err := p.sendRequest("swap", http.MethodPost, "/linear-swap-api/v1/swap_cross_available_level_rate", nil, nil, true)
 	if err != nil {
-		p.Logger.Println(err)
 		return nil, err
 	}
 	// in Close()
 	err = decode(res, &swaps)
 	if err != nil {
-		p.Logger.Println(err)
 		return nil, err
 	}
 	return swaps, nil
@@ -144,18 +135,15 @@ func (p *Client) SwapAssetTransfer(from, to, currency, marginAccount string, amo
 	params["amount"] = strconv.FormatFloat(amount, 'f', 8, 64)
 	body, err := json.Marshal(params)
 	if err != nil {
-		p.Logger.Println(err)
 		return nil, err
 	}
 	res, err := p.sendRequest("spot", http.MethodPost, "/v2/account/transfer", body, &params, true)
 	if err != nil {
-		p.Logger.Println(err)
 		return nil, err
 	}
 	// in Close()
 	err = decode(res, &swaps)
 	if err != nil {
-		p.Logger.Println(err)
 		return nil, err
 	}
 	return swaps, nil
@@ -188,18 +176,15 @@ func (p *Client) FinancilRecords(marginAccount, symbol, types string) (swaps *Fi
 	params["type"] = types
 	body, err := json.Marshal(params)
 	if err != nil {
-		p.Logger.Println(err)
 		return nil, err
 	}
 	res, err := p.sendRequest("swap", http.MethodPost, "/linear-swap-api/v1/swap_financial_record_exact", body, nil, true)
 	if err != nil {
-		p.Logger.Println(err)
 		return nil, err
 	}
 	// in Close()
 	err = decode(res, &swaps)
 	if err != nil {
-		p.Logger.Println(err)
 		return nil, err
 	}
 	return swaps, nil
