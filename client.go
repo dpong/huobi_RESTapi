@@ -8,7 +8,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -27,7 +26,7 @@ type Client struct {
 	HTTPC       *http.Client
 }
 
-func New(key, secret, subaccount string, log *log.Logger) *Client {
+func New(key, secret, subaccount string) *Client {
 	hc := &http.Client{
 		Timeout: 10 * time.Second,
 	}
