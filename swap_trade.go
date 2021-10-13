@@ -163,3 +163,114 @@ func (p *Client) SwapQueryOrder(mode string, opts SwapCancelOrderOpts) (swaps *S
 	}
 	return swaps, nil
 }
+
+type OnlySymbolOpts struct {
+	Symbol string `json:"contract_code"`
+}
+
+type CancelAllSwapOrdersResponse struct {
+	Status string `json:"status"`
+	Data   struct {
+		Errors    []interface{} `json:"errors"`
+		Successes string        `json:"successes"`
+	} `json:"data"`
+	Ts int64 `json:"ts"`
+}
+
+func (p *Client) CancelAllSwapOrders(mode string, symbol string) (swaps *CancelAllSwapOrdersResponse, err error) {
+	var path string
+	switch strings.ToLower(mode) {
+	case "cross":
+		path = "/linear-swap-api/v1/swap_cross_cancelall"
+	case "iso":
+		path = "/linear-swap-api/v1/swap_cancelall"
+	default:
+		return nil, errors.New("invaild mode for query swap order, choose mode between cross or iso")
+	}
+	opts := OnlySymbolOpts{
+		Symbol: symbol,
+	}
+	body, err := json.Marshal(opts)
+	if err != nil {
+		return nil, err
+	}
+	res, err := p.sendRequest("swap", http.MethodPost, path, body, nil, true)
+	if err != nil {
+		return nil, err
+	}
+	err = decode(res, &swaps)
+	if err != nil {
+		return nil, err
+	}
+	return swaps, nil
+}
+
+type GetSwapOpenOrdersResponse struct {
+	Status string `json:"status"`
+	Data   struct {
+		Orders []struct {
+			Symbol          string      `json:"symbol"`
+			ContractCode    string      `json:"contract_code"`
+			Volume          int         `json:"volume"`
+			Price           float64     `json:"price"`
+			OrderPriceType  string      `json:"order_price_type"`
+			OrderType       int         `json:"order_type"`
+			Direction       string      `json:"direction"`
+			Offset          string      `json:"offset"`
+			LeverRate       int         `json:"lever_rate"`
+			OrderID         int64       `json:"order_id"`
+			ClientOrderID   interface{} `json:"client_order_id"`
+			CreatedAt       int64       `json:"created_at"`
+			TradeVolume     int         `json:"trade_volume"`
+			TradeTurnover   float64     `json:"trade_turnover"`
+			Fee             float64     `json:"fee"`
+			TradeAvgPrice   float64     `json:"trade_avg_price"`
+			MarginFrozen    float64     `json:"margin_frozen"`
+			Profit          float64     `json:"profit"`
+			Status          int         `json:"status"`
+			OrderSource     string      `json:"order_source"`
+			OrderIDStr      string      `json:"order_id_str"`
+			FeeAsset        string      `json:"fee_asset"`
+			LiquidationType string      `json:"liquidation_type"`
+			CanceledAt      int         `json:"canceled_at"`
+			MarginAsset     string      `json:"margin_asset"`
+			MarginAccount   string      `json:"margin_account"`
+			MarginMode      string      `json:"margin_mode"`
+			IsTpsl          int         `json:"is_tpsl"`
+			UpdateTime      int64       `json:"update_time"`
+			RealProfit      float64     `json:"real_profit"`
+		} `json:"orders"`
+		TotalPage   int `json:"total_page"`
+		CurrentPage int `json:"current_page"`
+		TotalSize   int `json:"total_size"`
+	} `json:"data"`
+	Ts int64 `json:"ts"`
+}
+
+func (p *Client) GetSwapOpenOrders(mode string, symbol string) (swaps *GetSwapOpenOrdersResponse, err error) {
+	var path string
+	switch strings.ToLower(mode) {
+	case "cross":
+		path = "/linear-swap-api/v1/swap_cross_openorders"
+	case "iso":
+		path = "/linear-swap-api/v1/swap_openorders"
+	default:
+		return nil, errors.New("invaild mode for query swap order, choose mode between cross or iso")
+	}
+	opts := OnlySymbolOpts{
+		Symbol: symbol,
+	}
+	body, err := json.Marshal(opts)
+	if err != nil {
+		return nil, err
+	}
+	res, err := p.sendRequest("swap", http.MethodPost, path, body, nil, true)
+	if err != nil {
+		return nil, err
+	}
+	err = decode(res, &swaps)
+	if err != nil {
+		return nil, err
+	}
+	return swaps, nil
+}
