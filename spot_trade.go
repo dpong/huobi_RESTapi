@@ -58,22 +58,24 @@ func (p *Client) SpotCancelOrder(orderID string) (spot *SpotPlaceOrderResponse, 
 }
 
 type GetSpotOrderDetailResponse struct {
-	Data struct {
-		ID               int    `json:"id"`
-		Symbol           string `json:"symbol"`
-		AccountID        int    `json:"account-id"`
-		Amount           string `json:"amount"`
-		Price            string `json:"price"`
-		CreatedAt        int    `json:"created-at"`
-		Type             string `json:"type"`
-		FilledAmount     string `json:"filled-amount"`
-		FilledCashAmount string `json:"filled-cash-amount"`
-		FilledFees       string `json:"filled-fees"`
-		FinishedAt       int    `json:"finished-at"`
-		UserID           string `json:"user-id"`
-		Source           string `json:"source"`
-		State            string `json:"state"`
-		CanceledAt       int    `json:"canceled-at"`
+	Status string `json:"status"`
+	Data   []struct {
+		Symbol            string `json:"symbol"`
+		FeeCurrency       string `json:"fee-currency"`
+		Source            string `json:"source"`
+		OrderID           int64  `json:"order-id"`
+		Price             string `json:"price"`
+		CreatedAt         int64  `json:"created-at"`
+		Role              string `json:"role"`
+		MatchID           int    `json:"match-id"`
+		FilledAmount      string `json:"filled-amount"`
+		FilledFees        string `json:"filled-fees"`
+		FilledPoints      string `json:"filled-points"`
+		FeeDeductCurrency string `json:"fee-deduct-currency"`
+		FeeDeductState    string `json:"fee-deduct-state"`
+		TradeID           int    `json:"trade-id"`
+		ID                int64  `json:"id"`
+		Type              string `json:"type"`
 	} `json:"data"`
 }
 
@@ -81,6 +83,7 @@ func (p *Client) GetSpotOrderDetail(orderID string) (spot *GetSpotOrderDetailRes
 	var buffer bytes.Buffer
 	buffer.WriteString("/v1/order/orders/")
 	buffer.WriteString(orderID)
+	buffer.WriteString("/matchresults")
 	res, err := p.sendRequest("spot", http.MethodGet, buffer.String(), nil, nil, true)
 	if err != nil {
 		return nil, err
