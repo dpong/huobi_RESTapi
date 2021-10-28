@@ -163,6 +163,30 @@ func (o *OrderBookBranch) GetBids() ([][]string, bool) {
 	return book, true
 }
 
+func (o *OrderBookBranch) GetBidsEnoughForValue(value decimal.Decimal) ([][]string, bool) {
+	o.Bids.mux.RLock()
+	defer o.Bids.mux.RUnlock()
+	if len(o.Bids.Book) == 0 || !o.SnapShoted {
+		return [][]string{}, false
+	}
+	var loc int
+	var sumValue decimal.Decimal
+	for level, data := range o.Bids.Book {
+		if len(data) != 2 {
+			return [][]string{}, false
+		}
+		price, _ := decimal.NewFromString(data[0])
+		size, _ := decimal.NewFromString(data[1])
+		sumValue = sumValue.Add(price.Mul(size))
+		if sumValue.GreaterThan(value) {
+			loc = level
+			break
+		}
+	}
+	book := o.Bids.Book[:loc+1]
+	return book, true
+}
+
 // return asks, ready or not
 func (o *OrderBookBranch) GetAsks() ([][]string, bool) {
 	o.Asks.mux.RLock()
@@ -171,6 +195,30 @@ func (o *OrderBookBranch) GetAsks() ([][]string, bool) {
 		return [][]string{}, false
 	}
 	book := o.Asks.Book
+	return book, true
+}
+
+func (o *OrderBookBranch) GetAsksEnoughForValue(value decimal.Decimal) ([][]string, bool) {
+	o.Asks.mux.RLock()
+	defer o.Asks.mux.RUnlock()
+	if len(o.Asks.Book) == 0 || !o.SnapShoted {
+		return [][]string{}, false
+	}
+	var loc int
+	var sumValue decimal.Decimal
+	for level, data := range o.Asks.Book {
+		if len(data) != 2 {
+			return [][]string{}, false
+		}
+		price, _ := decimal.NewFromString(data[0])
+		size, _ := decimal.NewFromString(data[1])
+		sumValue = sumValue.Add(price.Mul(size))
+		if sumValue.GreaterThan(value) {
+			loc = level
+			break
+		}
+	}
+	book := o.Asks.Book[:loc+1]
 	return book, true
 }
 
