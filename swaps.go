@@ -189,3 +189,53 @@ func (p *Client) FinancilRecords(marginAccount, symbol, types string) (swaps *Fi
 	}
 	return swaps, nil
 }
+
+type GetIsoPositionLimitResponse struct {
+	Status string `json:"status"`
+	Data   []struct {
+		Symbol       string  `json:"symbol"`
+		ContractCode string  `json:"contract_code"`
+		BuyLimit     float64 `json:"buy_limit"`
+		SellLimit    float64 `json:"sell_limit"`
+		MarginMode   string  `json:"margin_mode"`
+	} `json:"data"`
+	Ts int64 `json:"ts"`
+}
+
+func (p *Client) GetIsoPositionLimit() (swaps *GetIsoPositionLimitResponse, err error) {
+	res, err := p.sendRequest("swap", http.MethodPost, "/linear-swap-api/v1/swap_position_limit", nil, nil, true)
+	if err != nil {
+		return nil, err
+	}
+	// in Close()
+	err = decode(res, &swaps)
+	if err != nil {
+		return nil, err
+	}
+	return swaps, nil
+}
+
+type GetCrossPositionLimitResponse struct {
+	Status string `json:"status"`
+	Data   []struct {
+		Symbol       string `json:"symbol"`
+		ContractCode string `json:"contract_code"`
+		MarginMode   string `json:"margin_mode"`
+		BuyLimit     int    `json:"buy_limit"`
+		SellLimit    int    `json:"sell_limit"`
+	} `json:"data"`
+	Ts int64 `json:"ts"`
+}
+
+func (p *Client) GetCrossPositionLimit() (swaps *GetCrossPositionLimitResponse, err error) {
+	res, err := p.sendRequest("swap", http.MethodPost, "/linear-swap-api/v1/swap_cross_position_limit", nil, nil, true)
+	if err != nil {
+		return nil, err
+	}
+	// in Close()
+	err = decode(res, &swaps)
+	if err != nil {
+		return nil, err
+	}
+	return swaps, nil
+}
