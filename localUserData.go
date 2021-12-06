@@ -73,7 +73,6 @@ func (u *SpotUserDataBranch) SpotAccount() *GetAccountDataResponse {
 	return u.spotAccount.Data
 }
 
-// if it's isomargin, should pass symbol. Else just pass ""
 func (c *Client) SpotUserData(id int, logger *log.Logger) *SpotUserDataBranch {
 	var u SpotUserDataBranch
 	ctx, cancel := context.WithCancel(context.Background())
@@ -194,7 +193,6 @@ func (u *SpotUserDataBranch) maintainSpotUserData(
 			return
 		default:
 			message := <-(*userData)
-			// working
 			data, ok := message["data"].(map[string]interface{})
 			if !ok {
 				continue
