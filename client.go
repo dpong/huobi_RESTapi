@@ -24,9 +24,10 @@ type Client struct {
 	key, secret string
 	subaccount  string
 	HTTPC       *http.Client
+	aws         bool
 }
 
-func New(key, secret, subaccount string) *Client {
+func New(key, secret, subaccount string, isAws bool) *Client {
 	hc := &http.Client{
 		Timeout: 10 * time.Second,
 	}
@@ -35,6 +36,7 @@ func New(key, secret, subaccount string) *Client {
 		secret:     secret,
 		subaccount: subaccount,
 		HTTPC:      hc,
+		aws:        isAws,
 	}
 }
 
@@ -45,7 +47,7 @@ func (p *Client) newRequest(product, method, spath string, body []byte, params *
 			q.Add(k, v)
 		}
 	}
-	host := HostHub(product)
+	host := p.HostHub(product)
 	url, err := p.sign(host, method, spath, &q, auth)
 	if err != nil {
 		return nil, err
@@ -153,12 +155,20 @@ func GetParamHmacSHA256Base64Sign(secret, params string) (string, error) {
 	return base64.StdEncoding.EncodeToString(signByte), nil
 }
 
-func HostHub(product string) (host string) {
+func (c *Client) HostHub(product string) (host string) {
 	switch product {
 	case "spot":
-		host = "api.huobi.pro"
+		if c.aws {
+			host = "api-aws.huobi.pro"
+		} else {
+			host = "api.huobi.pro"
+		}
 	case "swap":
-		host = "api.hbdm.com"
+		if c.aws {
+			host = "api.hbdm.vn"
+		} else {
+			host = "api.hbdm.com"
+		}
 	}
 	return host
 }
