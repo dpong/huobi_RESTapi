@@ -52,6 +52,9 @@ func (p *Client) newRequest(product, method, spath string, body []byte, params *
 	if err != nil {
 		return nil, err
 	}
+	// test
+	fmt.Println(url)
+	fmt.Println(string(body))
 	req, err := http.NewRequest(method, url, strings.NewReader(string(body)))
 	if err != nil {
 		return nil, err
