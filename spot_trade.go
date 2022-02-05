@@ -116,12 +116,13 @@ type SpotPlaceBatchOrdersResponse struct {
 	Status string `json:"status"`
 	Data   []struct {
 		OrderID       int64  `json:"order-id,omitempty"`
-		ClientOrderID string `json:"client-order-id"`
+		ClientOrderID string `json:"client-order-id,omitempty"`
 		ErrCode       string `json:"err-code,omitempty"`
 		ErrMsg        string `json:"err-msg,omitempty"`
 	} `json:"data"`
 }
 
+// max 10 orders
 func (p *Client) SpotPlaceBatchOrders(opts []SpotPlaceBatchOrdersOpts) (spot *SpotPlaceBatchOrdersResponse, err error) {
 	body, err := json.Marshal(opts)
 	if err != nil {
@@ -199,6 +200,7 @@ type SpotCancelBatchOrdersResponse struct {
 	} `json:"data"`
 }
 
+// max 50 orders
 func (p *Client) SpotCancelBatchOrders(opts SpotCancelBatchOrdersOpts) (spot *SpotCancelBatchOrdersResponse, err error) {
 	body, err := json.Marshal(opts)
 	if err != nil {

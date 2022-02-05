@@ -22,11 +22,29 @@ type OrderBookBranch struct {
 	LastUpdatedId decimal.Decimal
 	SnapShoted    bool
 	Cancel        *context.CancelFunc
+	reCh          chan error
+	lastRefresh   lastRefreshBranch
+}
+
+type lastRefreshBranch struct {
+	mux  sync.RWMutex
+	time time.Time
 }
 
 type BookBranch struct {
 	mux  sync.RWMutex
 	Book [][]string
+}
+
+func (o *OrderBookBranch) IfCanRefresh() bool {
+	o.lastRefresh.mux.Lock()
+	defer o.lastRefresh.mux.Unlock()
+	now := time.Now()
+	if now.After(o.lastRefresh.time.Add(time.Second * 3)) {
+		o.lastRefresh.time = now
+		return true
+	}
+	return false
 }
 
 func (o *OrderBookBranch) UpdateNewComing(message *map[string]interface{}) {
@@ -141,6 +159,12 @@ func (o *OrderBookBranch) DealWithAskPriceLevel(price, qty decimal.Decimal) {
 	}
 }
 
+func (o *OrderBookBranch) RefreshLocalOrderBook(err error) {
+	if o.IfCanRefresh() {
+		o.reCh <- err
+	}
+}
+
 func (o *OrderBookBranch) Close() {
 	(*o.Cancel)()
 	o.SnapShoted = true
@@ -156,7 +180,13 @@ func (o *OrderBookBranch) Close() {
 func (o *OrderBookBranch) GetBids() ([][]string, bool) {
 	o.Bids.mux.RLock()
 	defer o.Bids.mux.RUnlock()
-	if len(o.Bids.Book) == 0 || !o.SnapShoted {
+	if !o.SnapShoted {
+		return [][]string{}, false
+	}
+	if len(o.Bids.Book) == 0 {
+		if o.IfCanRefresh() {
+			o.reCh <- errors.New("re cause len bid is zero")
+		}
 		return [][]string{}, false
 	}
 	book := o.Bids.Book
@@ -191,7 +221,13 @@ func (o *OrderBookBranch) GetBidsEnoughForValue(value decimal.Decimal) ([][]stri
 func (o *OrderBookBranch) GetAsks() ([][]string, bool) {
 	o.Asks.mux.RLock()
 	defer o.Asks.mux.RUnlock()
-	if len(o.Asks.Book) == 0 || !o.SnapShoted {
+	if !o.SnapShoted {
+		return [][]string{}, false
+	}
+	if len(o.Asks.Book) == 0 {
+		if o.IfCanRefresh() {
+			o.reCh <- errors.New("re cause len ask is zero")
+		}
 		return [][]string{}, false
 	}
 	book := o.Asks.Book
@@ -232,12 +268,23 @@ func SwapLocalOrderBook(symbol string, logger *log.Logger) *OrderBookBranch {
 	return LocalOrderBook("swap", symbol, logger)
 }
 
+func ReStartMainSeesionErrHub(err string) bool {
+	switch {
+	case strings.Contains(err, "reconnect because of time out"):
+		return false
+	case strings.Contains(err, "reconnect because of reCh send"):
+		return false
+	}
+	return true
+}
+
 func LocalOrderBook(product, symbol string, logger *log.Logger) *OrderBookBranch {
 	var o OrderBookBranch
 	ctx, cancel := context.WithCancel(context.Background())
 	o.Cancel = &cancel
 	bookticker := make(chan map[string]interface{}, 50)
 	errCh := make(chan error, 5)
+	o.reCh = make(chan error, 5)
 	refreshCh := make(chan string, 5)
 	symbol = strings.ToUpper(symbol)
 	go func() {
@@ -250,7 +297,6 @@ func LocalOrderBook(product, symbol string, logger *log.Logger) *OrderBookBranch
 					return
 				}
 				errCh <- errors.New("Reconnect websocket")
-				time.Sleep(time.Second)
 			}
 		}
 	}()
@@ -260,9 +306,11 @@ func LocalOrderBook(product, symbol string, logger *log.Logger) *OrderBookBranch
 			case <-ctx.Done():
 				return
 			default:
-				o.MaintainOrderBook(ctx, product, symbol, &bookticker, &errCh, &refreshCh)
-				logger.Warningf("Refreshing %s %s local orderbook.\n", symbol, product)
-				time.Sleep(time.Second)
+				err := o.MaintainOrderBook(ctx, product, symbol, &bookticker, &errCh, &refreshCh)
+				if err == nil {
+					return
+				}
+				logger.Warningf("Refreshing %s %s local orderbook cause: %s\n", symbol, product, err.Error())
 			}
 		}
 	}()
@@ -275,7 +323,7 @@ func (o *OrderBookBranch) MaintainOrderBook(
 	bookticker *chan map[string]interface{},
 	errCh *chan error,
 	refreshCh *chan string,
-) {
+) error {
 	var storage []map[string]interface{}
 	var linked bool = false
 	o.SnapShoted = false
@@ -284,13 +332,14 @@ func (o *OrderBookBranch) MaintainOrderBook(
 		time.Sleep(time.Second)
 		*refreshCh <- "refresh"
 	}()
-
 	for {
 		select {
 		case <-ctx.Done():
-			return
-		case <-(*errCh):
-			return
+			return nil
+		case err := <-(*errCh):
+			return err
+		case err := <-o.reCh:
+			return err
 		default:
 			message := <-(*bookticker)
 			if len(message) != 0 {
