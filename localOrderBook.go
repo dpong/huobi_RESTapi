@@ -630,7 +630,7 @@ func HuobiOrderBookSocket(
 				return err
 			}
 		default:
-			time.Sleep(time.Millisecond)
+			time.Sleep(time.Millisecond * 10)
 		}
 	}
 }

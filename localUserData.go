@@ -302,7 +302,7 @@ func huobiSpotUserData(ctx context.Context, key, secret string, logger *log.Logg
 				return err
 			}
 		default:
-			time.Sleep(time.Millisecond)
+			time.Sleep(time.Millisecond * 10)
 		}
 	}
 }
