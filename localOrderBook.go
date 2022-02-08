@@ -580,6 +580,8 @@ func HuobiOrderBookSocket(
 	if err := w.Conn.SetReadDeadline(time.Now().Add(time.Second * duration)); err != nil {
 		return err
 	}
+	read := time.NewTicker(time.Millisecond * 50)
+	defer read.Stop()
 	for {
 		select {
 		case <-ctx.Done():
@@ -592,7 +594,7 @@ func HuobiOrderBookSocket(
 					// will refresh maintain part, then resend the req message
 				}
 			}
-		default:
+		case <-read.C:
 			if conn == nil {
 				d := w.OutHuobiErr()
 				*mainCh <- d
@@ -627,6 +629,8 @@ func HuobiOrderBookSocket(
 			if err := w.Conn.SetReadDeadline(time.Now().Add(time.Second * duration)); err != nil {
 				return err
 			}
+		default:
+			time.Sleep(time.Millisecond)
 		}
 	}
 }

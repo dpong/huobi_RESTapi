@@ -261,7 +261,8 @@ func huobiSpotUserData(ctx context.Context, key, secret string, logger *log.Logg
 			return err
 		}
 	}
-
+	read := time.NewTicker(time.Millisecond * 50)
+	defer read.Stop()
 	for {
 		select {
 		case <-ctx.Done():
@@ -269,7 +270,7 @@ func huobiSpotUserData(ctx context.Context, key, secret string, logger *log.Logg
 			message := "Huobi closing..."
 			logger.Warningln(message)
 			return errors.New(message)
-		default:
+		case <-read.C:
 			if conn == nil {
 				w.OutHuobiErr()
 				message := "Huobi reconnect..."
@@ -300,6 +301,8 @@ func huobiSpotUserData(ctx context.Context, key, secret string, logger *log.Logg
 			if err := w.Conn.SetReadDeadline(time.Now().Add(time.Second * duration)); err != nil {
 				return err
 			}
+		default:
+			time.Sleep(time.Millisecond)
 		}
 	}
 }
