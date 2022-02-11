@@ -357,7 +357,7 @@ func (o *OrderBookBranch) MaintainOrderBook(
 						continue
 					case "update":
 						if err := o.SwapUpdateJudge(&message); err != nil {
-							*errCh <- err
+							return err
 						}
 					default:
 						//
@@ -377,7 +377,7 @@ func (o *OrderBookBranch) MaintainOrderBook(
 					if len(storage) > 1 {
 						for _, data := range storage {
 							if err := o.SpotUpdateJudge(&data, &linked); err != nil {
-								*errCh <- err
+								return err
 							}
 						}
 						// clear storage
@@ -385,7 +385,7 @@ func (o *OrderBookBranch) MaintainOrderBook(
 					}
 					// handle incoming data
 					if err := o.SpotUpdateJudge(&message, &linked); err != nil {
-						*errCh <- err
+						return err
 					}
 				}
 			}
@@ -584,8 +584,6 @@ func HuobiOrderBookSocket(
 	if err := w.Conn.SetReadDeadline(time.Now().Add(time.Second * duration)); err != nil {
 		return err
 	}
-	read := time.NewTicker(time.Millisecond * 50)
-	defer read.Stop()
 	for {
 		select {
 		case <-ctx.Done():
@@ -594,11 +592,11 @@ func HuobiOrderBookSocket(
 			if send, err := GetHuobiSnapShotReqMessage(product, channel, symbol); err == nil {
 				if err := w.Conn.WriteMessage(websocket.TextMessage, send); err != nil {
 					logger.Errorf("fail to send req message with error: %s", err.Error())
-					*errCh <- err
+					return err
 					// will refresh maintain part, then resend the req message
 				}
 			}
-		case <-read.C:
+		default:
 			if conn == nil {
 				d := w.OutHuobiErr()
 				*mainCh <- d
@@ -633,8 +631,6 @@ func HuobiOrderBookSocket(
 			if err := w.Conn.SetReadDeadline(time.Now().Add(time.Second * duration)); err != nil {
 				return err
 			}
-		default:
-			time.Sleep(time.Millisecond * 10)
 		}
 	}
 }
@@ -649,6 +645,18 @@ func (w *HuobiWebsocket) HandleHuobiSocketData(product string, res *map[string]i
 		channelParts := strings.Split(channel, ".")
 		switch channelParts[2] {
 		case "mbp": // spot
+			if st, ok := (*res)["ts"].(float64); !ok {
+				m := w.OutHuobiErr()
+				*mainCh <- m
+				return errors.New("got nil when updating event time")
+			} else {
+				stamp := FormatingTimeStamp(st)
+				if time.Now().After(stamp.Add(time.Second * 5)) {
+					m := w.OutHuobiErr()
+					*mainCh <- m
+					return errors.New("websocket data delay more than 5 sec")
+				}
+			}
 			data, okd := (*res)["tick"].(map[string]interface{})
 			if okd {
 				Id := data["seqNum"].(float64)
@@ -762,4 +770,9 @@ func GetHuobiSnapShotReqMessage(product, channel, symbol string) ([]byte, error)
 		return nil, err
 	}
 	return message, nil
+}
+
+func FormatingTimeStamp(timeFloat float64) time.Time {
+	t := time.Unix(int64(timeFloat/1000), 0)
+	return t
 }
