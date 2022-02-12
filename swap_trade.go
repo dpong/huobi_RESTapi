@@ -1,6 +1,7 @@
 package huobiapi
 
 import (
+	"bytes"
 	"errors"
 	"net/http"
 	"strings"
@@ -209,9 +210,10 @@ type GetSwapOpenOrdersResponse struct {
 	Status string `json:"status"`
 	Data   struct {
 		Orders []struct {
+			UpdateTime      int64       `json:"update_time"`
 			Symbol          string      `json:"symbol"`
 			ContractCode    string      `json:"contract_code"`
-			Volume          int         `json:"volume"`
+			Volume          float64     `json:"volume"`
 			Price           float64     `json:"price"`
 			OrderPriceType  string      `json:"order_price_type"`
 			OrderType       int         `json:"order_type"`
@@ -221,7 +223,7 @@ type GetSwapOpenOrdersResponse struct {
 			OrderID         int64       `json:"order_id"`
 			ClientOrderID   interface{} `json:"client_order_id"`
 			CreatedAt       int64       `json:"created_at"`
-			TradeVolume     int         `json:"trade_volume"`
+			TradeVolume     float64     `json:"trade_volume"`
 			TradeTurnover   float64     `json:"trade_turnover"`
 			Fee             float64     `json:"fee"`
 			TradeAvgPrice   float64     `json:"trade_avg_price"`
@@ -232,13 +234,13 @@ type GetSwapOpenOrdersResponse struct {
 			OrderIDStr      string      `json:"order_id_str"`
 			FeeAsset        string      `json:"fee_asset"`
 			LiquidationType string      `json:"liquidation_type"`
-			CanceledAt      int         `json:"canceled_at"`
+			CanceledAt      int64       `json:"canceled_at"`
 			MarginAsset     string      `json:"margin_asset"`
 			MarginAccount   string      `json:"margin_account"`
 			MarginMode      string      `json:"margin_mode"`
 			IsTpsl          int         `json:"is_tpsl"`
-			UpdateTime      int64       `json:"update_time"`
 			RealProfit      float64     `json:"real_profit"`
+			TradePartition  string      `json:"trade_partition"`
 		} `json:"orders"`
 		TotalPage   int `json:"total_page"`
 		CurrentPage int `json:"current_page"`
@@ -247,7 +249,7 @@ type GetSwapOpenOrdersResponse struct {
 	Ts int64 `json:"ts"`
 }
 
-func (p *Client) GetSwapOpenOrders(mode string, symbol string) (swaps *GetSwapOpenOrdersResponse, err error) {
+func (p *Client) GetSwapOpenOrders(mode string, symbol string) (*GetSwapOpenOrdersResponse, error) {
 	var path string
 	switch strings.ToLower(mode) {
 	case "cross":
@@ -268,9 +270,13 @@ func (p *Client) GetSwapOpenOrders(mode string, symbol string) (swaps *GetSwapOp
 	if err != nil {
 		return nil, err
 	}
-	err = decode(res, &swaps)
+	var swaps GetSwapOpenOrdersResponse
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(res.Body)
+	err = json.Unmarshal(buf.Bytes(), &swaps)
 	if err != nil {
 		return nil, err
 	}
-	return swaps, nil
+
+	return &swaps, nil
 }
