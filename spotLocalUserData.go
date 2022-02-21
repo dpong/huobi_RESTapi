@@ -4,28 +4,39 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"net/url"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/shopspring/decimal"
 	log "github.com/sirupsen/logrus"
 )
 
 type SpotUserDataBranch struct {
-	spotAccount        spotAccountBranch
+	account            AccountBranch
 	accountID          int
 	cancel             *context.CancelFunc
-	HttpUpdateInterval int
+	httpUpdateInterval int
+	errs               chan error
+	trades             chan TradeData
 }
 
-type spotAccountBranch struct {
+type AccountBranch struct {
 	sync.RWMutex
-	Data           *GetAccountDataResponse
-	LastUpdated    time.Time
-	spotsnapShoted bool
+	Data *GetAccountDataResponse
+}
+
+type TradeData struct {
+	Symbol    string
+	Side      string
+	Oid       string
+	IsMaker   bool
+	Price     decimal.Decimal
+	Qty       decimal.Decimal
+	Fee       decimal.Decimal
+	TimeStamp time.Time
 }
 
 type HuobiAuthSubscribeMessage struct {
@@ -58,29 +69,36 @@ func (u *SpotUserDataBranch) Close() {
 	(*u.cancel)()
 }
 
+func (u *SpotUserDataBranch) AccountData() (*GetAccountDataResponse, error) {
+	u.account.RLock()
+	defer u.account.RUnlock()
+	return u.account.Data, u.readerrs()
+}
+
+func (u *SpotUserDataBranch) ReadTrade() (TradeData, error) {
+	if data, ok := <-u.trades; ok {
+		return data, nil
+	}
+	return TradeData{}, errors.New("trade channel already closed.")
+}
+
 func (u *SpotUserDataBranch) SetAccountID(input int) {
 	u.accountID = input
 }
 
 // default is 60 sec
 func (u *SpotUserDataBranch) SetHttpUpdateInterval(input int) {
-	u.HttpUpdateInterval = input
+	u.httpUpdateInterval = input
 }
 
-func (u *SpotUserDataBranch) SpotAccount() *GetAccountDataResponse {
-	u.spotAccount.RLock()
-	defer u.spotAccount.RUnlock()
-	return u.spotAccount.Data
-}
-
-func (c *Client) SpotUserData(id int, logger *log.Logger) *SpotUserDataBranch {
+func (c *Client) SpotLocalUserData(id int, logger *log.Logger) *SpotUserDataBranch {
 	var u SpotUserDataBranch
 	ctx, cancel := context.WithCancel(context.Background())
 	u.cancel = &cancel
-	u.HttpUpdateInterval = 60
+	u.httpUpdateInterval = 60
 	u.accountID = id
+	u.initialChannels()
 	userData := make(chan map[string]interface{}, 100)
-	errCh := make(chan error, 5)
 	// stream user data
 	go func() {
 		for {
@@ -88,42 +106,24 @@ func (c *Client) SpotUserData(id int, logger *log.Logger) *SpotUserDataBranch {
 			case <-ctx.Done():
 				return
 			default:
-				if err := huobiSpotUserData(ctx, c.key, c.secret, logger, &userData); err == nil {
+				if err := spotUserData(ctx, c.key, c.secret, logger, &userData); err == nil {
 					return
 				}
-				errCh <- errors.New("Reconnect websocket")
 				time.Sleep(time.Second)
 			}
 		}
 	}()
-	// update snapshot with steady interval
 	go func() {
-		snap := time.NewTicker(time.Second * time.Duration(u.HttpUpdateInterval))
-		defer snap.Stop()
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			case <-snap.C:
-				if err := u.getSpotAccountSnapShot(c); err != nil {
-					message := fmt.Sprintf("fail to getSpotAccountSnapShot() with err: %s", err.Error())
-					logger.Errorln(message)
+			default:
+				if err := u.maintainSpotUserData(ctx, c, &userData); err == nil {
+					return
+				} else {
+					logger.Warningf("Refreshing huobi spot local user data with err: %s", err.Error())
 				}
-
-			default:
-				time.Sleep(time.Second)
-			}
-		}
-	}()
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			default:
-				u.maintainSpotUserData(ctx, c, &userData, &errCh)
-				logger.Warningln("Refreshing huobi spot local user data.")
-				time.Sleep(time.Second)
 			}
 		}
 	}()
@@ -132,52 +132,37 @@ func (c *Client) SpotUserData(id int, logger *log.Logger) *SpotUserDataBranch {
 	return &u
 }
 
-func (u *SpotUserDataBranch) getSpotAccountSnapShot(client *Client) error {
-	u.spotAccount.Lock()
-	defer u.spotAccount.Unlock()
-	u.spotAccount.spotsnapShoted = false
+func (u *SpotUserDataBranch) getAccountSnapShot(client *Client) error {
+	u.account.Lock()
+	defer u.account.Unlock()
 	res, err := client.GetAccountData(u.accountID)
 	if err != nil {
 		return err
 	}
-	u.spotAccount.Data = res
-	u.spotAccount.spotsnapShoted = true
-	u.spotAccount.LastUpdated = time.Now()
+	u.account.Data = res
 	return nil
-}
-
-func (u *SpotUserDataBranch) lastUpdateTime() time.Time {
-	u.spotAccount.RLock()
-	defer u.spotAccount.RUnlock()
-	return u.spotAccount.LastUpdated
 }
 
 func (u *SpotUserDataBranch) maintainSpotUserData(
 	ctx context.Context,
 	client *Client,
 	userData *chan map[string]interface{},
-	errCh *chan error,
-) {
-	innerErr := make(chan error, 1)
+) error {
 	// get the first snapshot to initial data struct
-	if err := u.getSpotAccountSnapShot(client); err != nil {
-		return
+	if err := u.getAccountSnapShot(client); err != nil {
+		return err
 	}
-	// self check
+	// update snapshot with steady interval
 	go func() {
-		check := time.NewTicker(time.Second * 10)
-		defer check.Stop()
+		snap := time.NewTicker(time.Second * time.Duration(u.httpUpdateInterval))
+		defer snap.Stop()
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			case <-innerErr:
-				return
-			case <-check.C:
-				last := u.lastUpdateTime()
-				if time.Now().After(last.Add(time.Second * time.Duration(u.HttpUpdateInterval))) {
-					*errCh <- errors.New("spot user data out of date")
-					return
+			case <-snap.C:
+				if err := u.getAccountSnapShot(client); err != nil {
+					u.insertErr(err)
 				}
 			default:
 				time.Sleep(time.Second)
@@ -187,10 +172,9 @@ func (u *SpotUserDataBranch) maintainSpotUserData(
 	for {
 		select {
 		case <-ctx.Done():
-			return
-		case <-(*errCh):
-			innerErr <- errors.New("restart")
-			return
+			close(u.errs)
+			close(u.trades)
+			return nil
 		default:
 			message := <-(*userData)
 			data, ok := message["data"].(map[string]interface{})
@@ -222,37 +206,33 @@ func (u *SpotUserDataBranch) maintainSpotUserData(
 }
 
 func (u *SpotUserDataBranch) updateSpotAccountData(currency, accountType, balance string) {
-	u.spotAccount.Lock()
-	defer u.spotAccount.Unlock()
-	for idx, data := range u.spotAccount.Data.Data.List {
+	u.account.Lock()
+	defer u.account.Unlock()
+	for idx, data := range u.account.Data.Data.List {
 		if currency == data.Currency && accountType == data.Type {
-			u.spotAccount.Data.Data.List[idx].Balance = balance
+			u.account.Data.Data.List[idx].Balance = balance
 			break
 		}
 	}
-	u.spotAccount.LastUpdated = time.Now()
 }
 
-func huobiSpotUserData(ctx context.Context, key, secret string, logger *log.Logger, mainCh *chan map[string]interface{}) error {
+func spotUserData(ctx context.Context, key, secret string, logger *log.Logger, mainCh *chan map[string]interface{}) error {
 	var w HuobiWebsocket
 	var duration time.Duration = 30
 	w.Logger = logger
-
 	url := "wss://api.huobi.pro/ws/v2"
 	host := "api.huobi.pro"
 	path := "/ws/v2"
-
 	conn, _, err := websocket.DefaultDialer.Dial(url, nil)
 	if err != nil {
 		return err
 	}
 	log.Println("Connected:", url)
 	w.Conn = conn
-	defer conn.Close()
+	defer w.Conn.Close()
 	if err := w.Conn.SetReadDeadline(time.Now().Add(time.Second * duration)); err != nil {
 		return err
 	}
-
 	// auth
 	if send, err := getAuthSubscribeMessage(host, path, key, secret); err != nil {
 		return err
@@ -261,40 +241,40 @@ func huobiSpotUserData(ctx context.Context, key, secret string, logger *log.Logg
 			return err
 		}
 	}
-	read := time.NewTicker(time.Millisecond * 50)
+	read := time.NewTicker(time.Millisecond * 100)
 	defer read.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			w.OutHuobiErr()
-			message := "Huobi closing..."
+			message := "Huobi User Data closing..."
 			logger.Warningln(message)
 			return errors.New(message)
 		case <-read.C:
-			if conn == nil {
+			if w.Conn == nil {
 				w.OutHuobiErr()
-				message := "Huobi reconnect..."
+				message := "Huobi User Data reconnect..."
 				logger.Warningln(message)
 				return errors.New(message)
 			}
-			_, buf, err := conn.ReadMessage()
+			_, buf, err := w.Conn.ReadMessage()
 			if err != nil {
 				w.OutHuobiErr()
-				message := "Huobi reconnect..."
+				message := "Huobi User Data reconnect..."
 				logger.Warningln(message)
 				return errors.New(message)
 			}
 			res, err1 := DecodingMap(buf, logger)
 			if err1 != nil {
 				w.OutHuobiErr()
-				message := "Huobi reconnect..."
+				message := "Huobi User Data reconnect..."
 				logger.Warningln(message, err1)
 				return err1
 			}
 			err2 := w.HandleHuobiSpotUserData(&res, mainCh, logger)
 			if err2 != nil {
 				w.OutHuobiErr()
-				message := "Huobi reconnect..."
+				message := "Huobi User Data reconnect..."
 				logger.Warningln(message, err2)
 				return err2
 			}
@@ -302,7 +282,7 @@ func huobiSpotUserData(ctx context.Context, key, secret string, logger *log.Logg
 				return err
 			}
 		default:
-			time.Sleep(time.Millisecond * 10)
+			time.Sleep(time.Millisecond * 50)
 		}
 	}
 }
@@ -426,4 +406,44 @@ func DecodingMap(message []byte, logger *log.Logger) (res map[string]interface{}
 		return nil, err
 	}
 	return res, nil
+}
+
+func (u *SpotUserDataBranch) initialChannels() {
+	// 5 err is allowed
+	u.errs = make(chan error, 5)
+	u.trades = make(chan TradeData, 100)
+}
+
+func (u *SpotUserDataBranch) insertErr(input error) {
+	if len(u.errs) == cap(u.errs) {
+		<-u.errs
+	}
+	u.errs <- input
+}
+
+func (u *SpotUserDataBranch) insertTrade(input *TradeData) {
+	if len(u.trades) == cap(u.trades) {
+		<-u.trades
+	}
+	u.trades <- *input
+}
+
+func (u *SpotUserDataBranch) readerrs() error {
+	var buffer bytes.Buffer
+	for {
+		select {
+		case err, ok := <-u.errs:
+			if ok {
+				buffer.WriteString(err.Error())
+				buffer.WriteString(", ")
+			} else {
+				buffer.WriteString("errs chan already closed, ")
+			}
+		default:
+			if buffer.Cap() == 0 {
+				return nil
+			}
+			return errors.New(buffer.String())
+		}
+	}
 }
