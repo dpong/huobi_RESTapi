@@ -262,14 +262,14 @@ func (o *OrderBookBranch) GetAsksEnoughForValue(value decimal.Decimal) ([][]stri
 	return book, true
 }
 
-// symbol example: BTCUSDT
-func SpotLocalOrderBook(symbol string, logger *log.Logger) *OrderBookBranch {
-	return LocalOrderBook("spot", symbol, logger)
+// symbol example: BTCUSDT, depth: 5, 20,150 or 400
+func SpotLocalOrderBook(symbol, depth string, logger *log.Logger) *OrderBookBranch {
+	return LocalOrderBook("spot", symbol, depth, logger)
 }
 
-// symbol excample BTC-USDT
-func SwapLocalOrderBook(symbol string, logger *log.Logger) *OrderBookBranch {
-	return LocalOrderBook("swap", symbol, logger)
+// symbol excample BTC-USDT, depth: 20, 150
+func SwapLocalOrderBook(symbol, depth string, logger *log.Logger) *OrderBookBranch {
+	return LocalOrderBook("swap", symbol, depth, logger)
 }
 
 func ReStartMainSeesionErrHub(err string) bool {
@@ -282,7 +282,7 @@ func ReStartMainSeesionErrHub(err string) bool {
 	return true
 }
 
-func LocalOrderBook(product, symbol string, logger *log.Logger) *OrderBookBranch {
+func LocalOrderBook(product, symbol, depth string, logger *log.Logger) *OrderBookBranch {
 	var o OrderBookBranch
 	ctx, cancel := context.WithCancel(context.Background())
 	o.Cancel = &cancel
@@ -297,7 +297,7 @@ func LocalOrderBook(product, symbol string, logger *log.Logger) *OrderBookBranch
 			case <-ctx.Done():
 				return
 			default:
-				if err := HuobiOrderBookSocket(ctx, product, symbol, "orderbook", logger, &bookticker, &errCh, &refreshCh); err == nil {
+				if err := HuobiOrderBookSocket(ctx, product, symbol, "orderbook", depth, logger, &bookticker, &errCh, &refreshCh); err == nil {
 					return
 				}
 				errCh <- errors.New("Reconnect websocket")
@@ -547,7 +547,7 @@ func HuobiDecodingMap(message *[]byte, logger *log.Logger) (res map[string]inter
 
 func HuobiOrderBookSocket(
 	ctx context.Context,
-	product, symbol, channel string,
+	product, symbol, channel, depth string,
 	logger *log.Logger,
 	mainCh *chan map[string]interface{},
 	errCh *chan error,
@@ -574,7 +574,7 @@ func HuobiOrderBookSocket(
 	logger.Infof("Huobi %s %s orderBook socket connected.\n", symbol, product)
 	w.Conn = conn
 	defer conn.Close()
-	send, err := GetHuobiSubscribeMessage(product, channel, symbol)
+	send, err := GetHuobiSubscribeMessage(product, channel, symbol, depth)
 	if err != nil {
 		return err
 	}
@@ -589,7 +589,7 @@ func HuobiOrderBookSocket(
 		case <-ctx.Done():
 			return nil
 		case <-*refreshCh:
-			if send, err := GetHuobiSnapShotReqMessage(product, channel, symbol); err == nil {
+			if send, err := GetHuobiSnapShotReqMessage(product, channel, symbol, depth); err == nil {
 				if err := w.Conn.WriteMessage(websocket.TextMessage, send); err != nil {
 					logger.Errorf("fail to send req message with error: %s", err.Error())
 					return err
@@ -708,7 +708,7 @@ func (w *HuobiWebsocket) HandleHuobiSocketData(product string, res *map[string]i
 	return nil
 }
 
-func GetHuobiSubscribeMessage(product, channel, symbol string) ([]byte, error) {
+func GetHuobiSubscribeMessage(product, channel, symbol, depth string) ([]byte, error) {
 	var buffer bytes.Buffer
 	switch product {
 	case "spot":
@@ -716,7 +716,8 @@ func GetHuobiSubscribeMessage(product, channel, symbol string) ([]byte, error) {
 		case "orderbook":
 			buffer.WriteString("market.")
 			buffer.WriteString(symbol)
-			buffer.WriteString(".mbp.150")
+			buffer.WriteString(".mbp.")
+			buffer.WriteString(depth)
 		default:
 			return nil, errors.New("not supported channel, cancel socket connection")
 		}
@@ -725,7 +726,9 @@ func GetHuobiSubscribeMessage(product, channel, symbol string) ([]byte, error) {
 		case "orderbook":
 			buffer.WriteString("market.")
 			buffer.WriteString(symbol)
-			buffer.WriteString(".depth.size_150.high_freq")
+			buffer.WriteString(".depth.size_")
+			buffer.WriteString(depth)
+			buffer.WriteString(".high_freq")
 		default:
 			return nil, errors.New("not supported channel, cancel socket connection")
 		}
@@ -746,7 +749,7 @@ func GetHuobiSubscribeMessage(product, channel, symbol string) ([]byte, error) {
 	return message, nil
 }
 
-func GetHuobiSnapShotReqMessage(product, channel, symbol string) ([]byte, error) {
+func GetHuobiSnapShotReqMessage(product, channel, symbol, depth string) ([]byte, error) {
 	var buffer bytes.Buffer
 	switch product {
 	case "spot":
@@ -754,7 +757,8 @@ func GetHuobiSnapShotReqMessage(product, channel, symbol string) ([]byte, error)
 		case "orderbook":
 			buffer.WriteString("market.")
 			buffer.WriteString(symbol)
-			buffer.WriteString(".mbp.150")
+			buffer.WriteString(".mbp.")
+			buffer.WriteString(depth)
 		default:
 			return nil, errors.New("not supported channel, cancel socket connection")
 		}
