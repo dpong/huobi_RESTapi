@@ -333,9 +333,10 @@ func (o *OrderBookBranch) MaintainOrderBook(
 	o.SnapShoted = false
 	o.LastUpdatedId = decimal.NewFromInt(0)
 	go func() {
-		time.Sleep(time.Second)
+		time.Sleep(time.Second * 3)
 		*refreshCh <- "refresh"
 	}()
+	timeOut := time.After(time.Second * 5)
 	for {
 		select {
 		case <-ctx.Done():
@@ -344,6 +345,12 @@ func (o *OrderBookBranch) MaintainOrderBook(
 			return err
 		case err := <-o.reCh:
 			return err
+		case <-timeOut:
+			// if cap(*refreshCh) == len(*refreshCh) {
+			// 	// handle
+			// }
+			*refreshCh <- "refresh"
+			timeOut = time.After(time.Second * 5)
 		default:
 			message := <-(*bookticker)
 			if len(message) != 0 {
@@ -388,6 +395,7 @@ func (o *OrderBookBranch) MaintainOrderBook(
 						return err
 					}
 				}
+				timeOut = time.After(time.Second * 5)
 			}
 		}
 	}
