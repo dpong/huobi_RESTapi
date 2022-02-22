@@ -436,41 +436,42 @@ func (o *OrderBookBranch) SwapUpdateJudge(message *map[string]interface{}) error
 }
 
 func (o *OrderBookBranch) InitialOrderBook(res *map[string]interface{}) {
-	var wg sync.WaitGroup
-	data := (*res)["data"].(map[string]interface{})
-	id := decimal.NewFromFloat(data["seqNum"].(float64))
-	wg.Add(2)
-	go func() {
-		defer wg.Done()
-		// bid
-		o.Bids.mux.Lock()
-		defer o.Bids.mux.Unlock()
-		o.Bids.Book = [][]string{}
-		bids := data["bids"].([]interface{})
-		for _, item := range bids {
-			levelData := item.([]interface{})
-			price := decimal.NewFromFloat(levelData[0].(float64))
-			size := decimal.NewFromFloat(levelData[1].(float64))
-			o.Bids.Book = append(o.Bids.Book, []string{price.String(), size.String()})
-		}
-	}()
-	go func() {
-		defer wg.Done()
-		// ask
-		o.Asks.mux.Lock()
-		defer o.Asks.mux.Unlock()
-		o.Asks.Book = [][]string{}
-		asks := data["asks"].([]interface{})
-		for _, item := range asks {
-			levelData := item.([]interface{})
-			price := decimal.NewFromFloat(levelData[0].(float64))
-			size := decimal.NewFromFloat(levelData[1].(float64))
-			o.Asks.Book = append(o.Asks.Book, []string{price.String(), size.String()})
-		}
-	}()
-	wg.Wait()
-	o.LastUpdatedId = id
-	o.SnapShoted = true
+	if data, ok := (*res)["data"].(map[string]interface{}); ok {
+		var wg sync.WaitGroup
+		id := decimal.NewFromFloat(data["seqNum"].(float64))
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			// bid
+			o.Bids.mux.Lock()
+			defer o.Bids.mux.Unlock()
+			o.Bids.Book = [][]string{}
+			bids := data["bids"].([]interface{})
+			for _, item := range bids {
+				levelData := item.([]interface{})
+				price := decimal.NewFromFloat(levelData[0].(float64))
+				size := decimal.NewFromFloat(levelData[1].(float64))
+				o.Bids.Book = append(o.Bids.Book, []string{price.String(), size.String()})
+			}
+		}()
+		go func() {
+			defer wg.Done()
+			// ask
+			o.Asks.mux.Lock()
+			defer o.Asks.mux.Unlock()
+			o.Asks.Book = [][]string{}
+			asks := data["asks"].([]interface{})
+			for _, item := range asks {
+				levelData := item.([]interface{})
+				price := decimal.NewFromFloat(levelData[0].(float64))
+				size := decimal.NewFromFloat(levelData[1].(float64))
+				o.Asks.Book = append(o.Asks.Book, []string{price.String(), size.String()})
+			}
+		}()
+		wg.Wait()
+		o.LastUpdatedId = id
+		o.SnapShoted = true
+	}
 }
 
 func (o *OrderBookBranch) InitialSwapOrderBook(res *map[string]interface{}) {
