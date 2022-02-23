@@ -100,3 +100,36 @@ func (p *Client) GetAccountData(id int) (swaps *GetAccountDataResponse, err erro
 	}
 	return swaps, nil
 }
+
+type GetLastTradeResponse struct {
+	Ch     string `json:"ch"`
+	Status string `json:"status"`
+	Ts     float64  `json:"ts"`
+	Tick   struct {
+		ID   float64 `json:"id"`
+		Ts   float64 `json:"ts"`
+		Data []struct {
+			ID        float64   `json:"id"`
+			Ts        float64   `json:"ts"`
+			TradeID   float64   `json:"trade-id"`
+			Amount    float64 `json:"amount"`
+			Price     float64 `json:"price"`
+			Direction string  `json:"direction"`
+		} `json:"data"`
+	} `json:"tick"`
+}
+
+func (p *Client) GetLastTrade(symbol string) (swaps *GetLastTradeResponse, err error) {
+	url := "/market/trade"
+	params := make(map[string]string)
+	params["symbol"] = symbol
+	res, err := p.sendRequest("spot", http.MethodGet, url, nil, &params, false)
+	if err != nil {
+		return nil, err
+	}
+	err = decode(res, &swaps)
+	if err != nil {
+		return nil, err
+	}
+	return swaps, nil
+}
