@@ -20,7 +20,6 @@ type StreamTickerBranch struct {
 	ask    tobBranch
 	cancel *context.CancelFunc
 	reCh   chan error
-	socket huobiWebsocket
 }
 
 type tobBranch struct {
