@@ -280,3 +280,50 @@ func (p *Client) GetSwapOpenOrders(mode string, symbol string) (*GetSwapOpenOrde
 
 	return &swaps, nil
 }
+
+// type SwapPlaceBatchOrdersOpts struct {
+// 	Symbol        string `json:"contract_code"`
+// 	Side          string `json:"direction"`
+// 	OffSet        string `json:"offset"`
+// 	Type          string `json:"type"`
+// 	Amount        string `json:"amount"`
+// 	Price         string `json:"price,omitempty"`
+// 	Source        string `json:"source"`
+// 	ClientOrderID string `json:"client-order-id,omitempty"`
+// }
+
+// type SwapPlaceBatchOrdersResponse struct {
+// 	Status string `json:"status"`
+// 	Data   []struct {
+// 		OrderID       int64  `json:"order-id,omitempty"`
+// 		ClientOrderID string `json:"client-order-id,omitempty"`
+// 		ErrCode       string `json:"err-code,omitempty"`
+// 		ErrMsg        string `json:"err-msg,omitempty"`
+// 	} `json:"data"`
+// }
+
+// // max 10 orders
+// func (p *Client) SwapPlaceBatchOrders(mode string, opts []SpotPlaceBatchOrdersOpts) (spot *SpotPlaceBatchOrdersResponse, err error) {
+// 	var path string
+// 	switch strings.ToLower(mode) {
+// 	case "cross":
+// 		path = "/linear-swap-api/v1/swap_cross_batchorder"
+// 	case "iso":
+// 		path = "/linear-swap-api/v1/swap_batchorder"
+// 	default:
+// 		return nil, errors.New("invaild mode for query swap order, choose mode between cross or iso")
+// 	}
+// 	body, err := json.Marshal(opts)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	res, err := p.sendRequest("spot", http.MethodPost, path, body, nil, true)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	err = decode(res, &spot)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	return spot, nil
+// }

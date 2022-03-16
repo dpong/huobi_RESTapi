@@ -297,7 +297,7 @@ func LocalOrderBook(product, symbol, depth string, logger *log.Logger) *OrderBoo
 			case <-ctx.Done():
 				return
 			default:
-				if err := HuobiOrderBookSocket(ctx, product, symbol, "orderbook", depth, logger, &bookticker, &errCh, &refreshCh); err == nil {
+				if err := huobiOrderBookSocket(ctx, product, symbol, "orderbook", depth, logger, &bookticker, &errCh, &refreshCh); err == nil {
 					return
 				}
 				errCh <- errors.New("Reconnect websocket")
@@ -511,7 +511,7 @@ func (o *OrderBookBranch) InitialSwapOrderBook(res *map[string]interface{}) {
 	o.SnapShoted = true
 }
 
-type HuobiWebsocket struct {
+type huobiWebsocket struct {
 	Channel       string
 	OnErr         bool
 	Logger        *log.Logger
@@ -519,24 +519,24 @@ type HuobiWebsocket struct {
 	LastUpdatedId decimal.Decimal
 }
 
-type HuobiSubscribeMessage struct {
+type huobiSubscribeMessage struct {
 	Sub      string `json:"sub"`
-	ID       string `json:"id"`
+	ID       string `json:"id,omitempty"`
 	DataType string `json:"data_type,omitempty"`
 }
 
-type HuobiSnapShotReqMessage struct {
+type huobiSnapShotReqMessage struct {
 	Req string `json:"req"`
 	ID  string `json:"id"`
 }
 
-func (w *HuobiWebsocket) OutHuobiErr() map[string]interface{} {
+func (w *huobiWebsocket) outHuobiErr() map[string]interface{} {
 	w.OnErr = true
 	m := make(map[string]interface{})
 	return m
 }
 
-func HuobiDecodingMap(message *[]byte, logger *log.Logger) (res map[string]interface{}, err error) {
+func huobiDecodingMap(message *[]byte, logger *log.Logger) (res map[string]interface{}, err error) {
 	body, err := gzip.NewReader(bytes.NewReader(*message))
 	if err != nil {
 		return nil, err
@@ -554,7 +554,7 @@ func HuobiDecodingMap(message *[]byte, logger *log.Logger) (res map[string]inter
 	return res, nil
 }
 
-func HuobiOrderBookSocket(
+func huobiOrderBookSocket(
 	ctx context.Context,
 	product, symbol, channel, depth string,
 	logger *log.Logger,
@@ -562,7 +562,7 @@ func HuobiOrderBookSocket(
 	errCh *chan error,
 	refreshCh *chan string,
 ) error {
-	var w HuobiWebsocket
+	var w huobiWebsocket
 	var duration time.Duration = 30
 	w.Logger = logger
 	w.OnErr = false
@@ -572,7 +572,11 @@ func HuobiOrderBookSocket(
 	case "swap":
 		url = "wss://api.hbdm.com/linear-swap-ws"
 	case "spot":
-		url = "wss://api.huobi.pro/feed"
+		if channel == "orderbook" {
+			url = "wss://api.huobi.pro/feed"
+		} else {
+			url = "wss://api.huobi.pro/ws"
+		}
 	default:
 		return errors.New("not supported product, cancel socket connection")
 	}
@@ -583,7 +587,7 @@ func HuobiOrderBookSocket(
 	logger.Infof("Huobi %s %s orderBook socket connected.\n", symbol, product)
 	w.Conn = conn
 	defer conn.Close()
-	send, err := GetHuobiSubscribeMessage(product, channel, symbol, depth)
+	send, err := getHuobiSubscribeMessage(product, channel, symbol, depth)
 	if err != nil {
 		return err
 	}
@@ -598,7 +602,7 @@ func HuobiOrderBookSocket(
 		case <-ctx.Done():
 			return nil
 		case <-*refreshCh:
-			if send, err := GetHuobiSnapShotReqMessage(product, channel, symbol, depth); err == nil {
+			if send, err := getHuobiSnapShotReqMessage(product, channel, symbol, depth); err == nil {
 				if err := w.Conn.WriteMessage(websocket.TextMessage, send); err != nil {
 					logger.Errorf("fail to send req message with error: %s", err.Error())
 					return err
@@ -607,7 +611,7 @@ func HuobiOrderBookSocket(
 			}
 		default:
 			if conn == nil {
-				d := w.OutHuobiErr()
+				d := w.outHuobiErr()
 				*mainCh <- d
 				message := "Huobi reconnect..."
 				logger.Infoln(message)
@@ -615,23 +619,23 @@ func HuobiOrderBookSocket(
 			}
 			_, buf, err := conn.ReadMessage()
 			if err != nil {
-				d := w.OutHuobiErr()
+				d := w.outHuobiErr()
 				*mainCh <- d
 				message := "Huobi reconnect..."
 				logger.Infoln(message)
 				return errors.New(message)
 			}
-			res, err1 := HuobiDecodingMap(&buf, logger)
+			res, err1 := huobiDecodingMap(&buf, logger)
 			if err1 != nil {
-				d := w.OutHuobiErr()
+				d := w.outHuobiErr()
 				*mainCh <- d
 				message := "Huobi reconnect..."
 				logger.Infoln(message, err1)
 				return err1
 			}
-			err2 := w.HandleHuobiSocketData(product, &res, mainCh)
+			err2 := w.handleHuobiSocketData(product, &res, mainCh)
 			if err2 != nil {
-				d := w.OutHuobiErr()
+				d := w.outHuobiErr()
 				*mainCh <- d
 				message := "Huobi reconnect..."
 				logger.Infoln(message, err2)
@@ -648,20 +652,20 @@ type HuobiPing struct {
 	Pong float64 `json:"pong"`
 }
 
-func (w *HuobiWebsocket) HandleHuobiSocketData(product string, res *map[string]interface{}, mainCh *chan map[string]interface{}) error {
+func (w *huobiWebsocket) handleHuobiSocketData(product string, res *map[string]interface{}, mainCh *chan map[string]interface{}) error {
 	channel, ok := (*res)["ch"].(string)
 	if ok {
 		channelParts := strings.Split(channel, ".")
 		switch channelParts[2] {
 		case "mbp": // spot
 			if st, ok := (*res)["ts"].(float64); !ok {
-				m := w.OutHuobiErr()
+				m := w.outHuobiErr()
 				*mainCh <- m
 				return errors.New("got nil when updating event time")
 			} else {
-				stamp := FormatingTimeStamp(st)
+				stamp := formatingTimeStamp(st)
 				if time.Now().After(stamp.Add(time.Second * 5)) {
-					m := w.OutHuobiErr()
+					m := w.outHuobiErr()
 					*mainCh <- m
 					return errors.New("websocket data delay more than 5 sec")
 				}
@@ -672,7 +676,7 @@ func (w *HuobiWebsocket) HandleHuobiSocketData(product string, res *map[string]i
 				//preId := data["prevSeqNum"].(float64)
 				newID := decimal.NewFromFloat(Id)
 				if newID.LessThan(w.LastUpdatedId) {
-					m := w.OutHuobiErr()
+					m := w.outHuobiErr()
 					*mainCh <- m
 					return errors.New("got error when updating lastUpdateId")
 				}
@@ -686,11 +690,29 @@ func (w *HuobiWebsocket) HandleHuobiSocketData(product string, res *map[string]i
 				Id := data["id"].(float64)
 				newID := decimal.NewFromFloat(Id)
 				if newID.LessThan(w.LastUpdatedId) {
-					m := w.OutHuobiErr()
+					m := w.outHuobiErr()
 					*mainCh <- m
 					return errors.New("got error when updating lastUpdateId")
 				}
 				w.LastUpdatedId = newID
+				*mainCh <- data
+				return nil
+			}
+		case "ticker": // spot ticker
+			data, okd := (*res)["tick"].(map[string]interface{})
+			if okd {
+				if ts, ok := (*res)["ts"].(float64); !ok {
+					m := w.outHuobiErr()
+					*mainCh <- m
+					return errors.New("got no ts when receving ticker data")
+				} else {
+					stamp := formatingTimeStamp(ts)
+					if time.Now().After(stamp.Add(time.Second * 2)) {
+						w.outHuobiErr()
+						err := errors.New("websocket data delay more than 2 sec")
+						return err
+					}
+				}
 				*mainCh <- data
 				return nil
 			}
@@ -717,7 +739,7 @@ func (w *HuobiWebsocket) HandleHuobiSocketData(product string, res *map[string]i
 	return nil
 }
 
-func GetHuobiSubscribeMessage(product, channel, symbol, depth string) ([]byte, error) {
+func getHuobiSubscribeMessage(product, channel, symbol, depth string) ([]byte, error) {
 	var buffer bytes.Buffer
 	switch product {
 	case "spot":
@@ -744,7 +766,7 @@ func GetHuobiSubscribeMessage(product, channel, symbol, depth string) ([]byte, e
 	default:
 		return nil, errors.New("not supported product, cancel socket connection")
 	}
-	sub := HuobiSubscribeMessage{
+	sub := huobiSubscribeMessage{
 		Sub: buffer.String(),
 		ID:  "1234",
 	}
@@ -758,7 +780,7 @@ func GetHuobiSubscribeMessage(product, channel, symbol, depth string) ([]byte, e
 	return message, nil
 }
 
-func GetHuobiSnapShotReqMessage(product, channel, symbol, depth string) ([]byte, error) {
+func getHuobiSnapShotReqMessage(product, channel, symbol, depth string) ([]byte, error) {
 	var buffer bytes.Buffer
 	switch product {
 	case "spot":
@@ -774,7 +796,7 @@ func GetHuobiSnapShotReqMessage(product, channel, symbol, depth string) ([]byte,
 	default:
 		return nil, errors.New("not supported product, cancel socket connection")
 	}
-	sub := HuobiSnapShotReqMessage{
+	sub := huobiSnapShotReqMessage{
 		Req: buffer.String(),
 		ID:  "1234",
 	}
@@ -785,7 +807,7 @@ func GetHuobiSnapShotReqMessage(product, channel, symbol, depth string) ([]byte,
 	return message, nil
 }
 
-func FormatingTimeStamp(timeFloat float64) time.Time {
+func formatingTimeStamp(timeFloat float64) time.Time {
 	t := time.Unix(int64(timeFloat/1000), 0)
 	return t
 }

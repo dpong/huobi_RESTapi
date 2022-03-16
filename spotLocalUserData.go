@@ -217,7 +217,7 @@ func (u *SpotUserDataBranch) updateSpotAccountData(currency, accountType, balanc
 }
 
 func spotUserData(ctx context.Context, key, secret string, logger *log.Logger, mainCh *chan map[string]interface{}) error {
-	var w HuobiWebsocket
+	var w huobiWebsocket
 	var duration time.Duration = 30
 	w.Logger = logger
 	url := "wss://api.huobi.pro/ws/v2"
@@ -246,34 +246,34 @@ func spotUserData(ctx context.Context, key, secret string, logger *log.Logger, m
 	for {
 		select {
 		case <-ctx.Done():
-			w.OutHuobiErr()
+			w.outHuobiErr()
 			message := "Huobi User Data closing..."
 			logger.Warningln(message)
 			return errors.New(message)
 		case <-read.C:
 			if w.Conn == nil {
-				w.OutHuobiErr()
+				w.outHuobiErr()
 				message := "Huobi User Data reconnect..."
 				logger.Warningln(message)
 				return errors.New(message)
 			}
 			_, buf, err := w.Conn.ReadMessage()
 			if err != nil {
-				w.OutHuobiErr()
+				w.outHuobiErr()
 				message := "Huobi User Data reconnect..."
 				logger.Warningln(message)
 				return errors.New(message)
 			}
 			res, err1 := DecodingMap(buf, logger)
 			if err1 != nil {
-				w.OutHuobiErr()
+				w.outHuobiErr()
 				message := "Huobi User Data reconnect..."
 				logger.Warningln(message, err1)
 				return err1
 			}
 			err2 := w.HandleHuobiSpotUserData(&res, mainCh, logger)
 			if err2 != nil {
-				w.OutHuobiErr()
+				w.outHuobiErr()
 				message := "Huobi User Data reconnect..."
 				logger.Warningln(message, err2)
 				return err2
@@ -334,7 +334,7 @@ func getSpotAccountUpdateSubMessage() ([]byte, error) {
 	return message, nil
 }
 
-func (w *HuobiWebsocket) HandleHuobiSpotUserData(res *map[string]interface{}, mainCh *chan map[string]interface{}, logger *log.Logger) error {
+func (w *huobiWebsocket) HandleHuobiSpotUserData(res *map[string]interface{}, mainCh *chan map[string]interface{}, logger *log.Logger) error {
 	action, ok := (*res)["action"].(string)
 	if ok {
 		switch action {
