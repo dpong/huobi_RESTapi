@@ -9,6 +9,8 @@ import (
 
 const SpotBatchBuy = "buy-limit"
 const SpotBatchSell = "sell-limit"
+const SpotBatchBuyMaker = "buy-limit-maker"
+const SpotBatchSellMaker = "sell-limit-maker"
 const SpotBatchSource = "spot-api"
 
 type SpotPlaceOrderResponse struct {

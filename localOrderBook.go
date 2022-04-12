@@ -708,6 +708,8 @@ func (w *huobiWebsocket) handleHuobiSocketData(product string, res *map[string]i
 				} else {
 					stamp := formatingTimeStamp(ts)
 					if time.Now().After(stamp.Add(time.Second * 2)) {
+						// test
+						fmt.Println(stamp, time.Now())
 						w.outHuobiErr()
 						err := errors.New("websocket data delay more than 2 sec")
 						return err
