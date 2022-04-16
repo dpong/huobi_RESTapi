@@ -168,11 +168,11 @@ func (p *Client) SpotGetAllOpenOrders(accountID int, symbol string) (spot *SpotG
 	if symbol != "" {
 		params["symbol"] = strings.ToLower(symbol)
 	}
-	body, err := json.Marshal(params)
-	if err != nil {
-		return nil, err
-	}
-	res, err := p.sendRequest("spot", http.MethodGet, "/v1/order/openOrders", body, &params, true)
+	// body, err := json.Marshal(params)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	res, err := p.sendRequest("spot", http.MethodGet, "/v1/order/openOrders", nil, &params, true)
 	if err != nil {
 		return nil, err
 	}
@@ -185,7 +185,7 @@ func (p *Client) SpotGetAllOpenOrders(accountID int, symbol string) (spot *SpotG
 }
 
 type SpotCancelBatchOrdersOpts struct {
-	OrderIds []string `json:"order-ids"`
+	OrderIds []int64 `json:"order-ids"`
 }
 
 type SpotCancelBatchOrdersResponse struct {

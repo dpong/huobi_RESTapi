@@ -60,7 +60,7 @@ func (p *Client) GetAllAccounts() (swaps *GetAllAccountsResponse, err error) {
 	if err != nil {
 		return nil, err
 	}
-	// in Close()
+
 	err = decode(res, &swaps)
 	if err != nil {
 		return nil, err
@@ -102,16 +102,16 @@ func (p *Client) GetAccountData(id int) (swaps *GetAccountDataResponse, err erro
 }
 
 type GetLastTradeResponse struct {
-	Ch     string `json:"ch"`
-	Status string `json:"status"`
-	Ts     float64  `json:"ts"`
+	Ch     string  `json:"ch"`
+	Status string  `json:"status"`
+	Ts     float64 `json:"ts"`
 	Tick   struct {
 		ID   float64 `json:"id"`
 		Ts   float64 `json:"ts"`
 		Data []struct {
-			ID        float64   `json:"id"`
-			Ts        float64   `json:"ts"`
-			TradeID   float64   `json:"trade-id"`
+			ID        float64 `json:"id"`
+			Ts        float64 `json:"ts"`
+			TradeID   float64 `json:"trade-id"`
 			Amount    float64 `json:"amount"`
 			Price     float64 `json:"price"`
 			Direction string  `json:"direction"`
