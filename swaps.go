@@ -1,6 +1,7 @@
 package huobiapi
 
 import (
+	"bytes"
 	"net/http"
 	"strconv"
 	"strings"
@@ -20,7 +21,7 @@ type SwapsResponse struct {
 	Ts int64 `json:"ts"`
 }
 
-func (p *Client) Swaps(mode string) (swaps *SwapsResponse, err error) {
+func (p *Client) Swaps(mode string) (*SwapsResponse, error) {
 	params := make(map[string]string)
 	if mode != "" {
 		params["support_margin_mode"] = strings.ToLower(mode)
@@ -33,12 +34,14 @@ func (p *Client) Swaps(mode string) (swaps *SwapsResponse, err error) {
 	if err != nil {
 		return nil, err
 	}
-	// in Close()
-	err = decode(res, &swaps)
+	var result SwapsResponse
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(res.Body)
+	err = json.Unmarshal(buf.Bytes(), &result)
 	if err != nil {
 		return nil, err
 	}
-	return swaps, nil
+	return &result, nil
 }
 
 type SwapOpenInterestResponse struct {
@@ -56,17 +59,19 @@ type SwapOpenInterestResponse struct {
 	Ts int64 `json:"ts"`
 }
 
-func (p *Client) SwapOpenInterests() (swaps *SwapOpenInterestResponse) {
+func (p *Client) SwapOpenInterests() (*SwapOpenInterestResponse, error) {
 	res, err := p.sendRequest("swap", http.MethodGet, "/linear-swap-api/v1/swap_open_interest", nil, nil, false)
 	if err != nil {
-		return nil
+		return nil, err
 	}
-	// in Close()
-	err = decode(res, &swaps)
+	var result SwapOpenInterestResponse
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(res.Body)
+	err = json.Unmarshal(buf.Bytes(), &result)
 	if err != nil {
-		return nil
+		return nil, err
 	}
-	return swaps
+	return &result, nil
 }
 
 type SwapNextFundingResponse struct {
@@ -83,17 +88,19 @@ type SwapNextFundingResponse struct {
 	Ts int64 `json:"ts"`
 }
 
-func (p *Client) SwapNextFundings() (swaps *SwapNextFundingResponse) {
+func (p *Client) SwapNextFundings() (*SwapNextFundingResponse, error) {
 	res, err := p.sendRequest("swap", http.MethodGet, "/linear-swap-api/v1/swap_batch_funding_rate", nil, nil, false)
 	if err != nil {
-		return nil
+		return nil, err
 	}
-	// in Close()
-	err = decode(res, &swaps)
+	var result SwapNextFundingResponse
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(res.Body)
+	err = json.Unmarshal(buf.Bytes(), &result)
 	if err != nil {
-		return nil
+		return nil, err
 	}
-	return swaps
+	return &result, nil
 }
 
 type SwapCrossMarginLeverages struct {
@@ -106,17 +113,19 @@ type SwapCrossMarginLeverages struct {
 	Ts int64 `json:"ts"`
 }
 
-func (p *Client) SwapLeverages() (swaps *SwapCrossMarginLeverages, err error) {
+func (p *Client) SwapLeverages() (*SwapCrossMarginLeverages, error) {
 	res, err := p.sendRequest("swap", http.MethodPost, "/linear-swap-api/v1/swap_cross_available_level_rate", nil, nil, true)
 	if err != nil {
 		return nil, err
 	}
-	// in Close()
-	err = decode(res, &swaps)
+	var result SwapCrossMarginLeverages
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(res.Body)
+	err = json.Unmarshal(buf.Bytes(), &result)
 	if err != nil {
 		return nil, err
 	}
-	return swaps, nil
+	return &result, nil
 }
 
 type SwapAssetTransferResponse struct {
@@ -126,7 +135,7 @@ type SwapAssetTransferResponse struct {
 	Success bool   `json:"success"`
 }
 
-func (p *Client) SwapAssetTransfer(from, to, currency, marginAccount string, amount float64) (swaps *SwapAssetTransferResponse, err error) {
+func (p *Client) SwapAssetTransfer(from, to, currency, marginAccount string, amount float64) (*SwapAssetTransferResponse, error) {
 	params := make(map[string]string)
 	params["from"] = strings.ToLower(from) //spot、linear-swap
 	params["to"] = strings.ToLower(to)
@@ -141,12 +150,14 @@ func (p *Client) SwapAssetTransfer(from, to, currency, marginAccount string, amo
 	if err != nil {
 		return nil, err
 	}
-	// in Close()
-	err = decode(res, &swaps)
+	var result SwapAssetTransferResponse
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(res.Body)
+	err = json.Unmarshal(buf.Bytes(), &result)
 	if err != nil {
 		return nil, err
 	}
-	return swaps, nil
+	return &result, nil
 }
 
 type FinancialRecordResponse struct {
@@ -169,7 +180,7 @@ type FinancialRecordResponse struct {
 }
 
 //30,31 are funding fee
-func (p *Client) FinancilRecords(marginAccount, symbol, types string) (swaps *FinancialRecordResponse, err error) {
+func (p *Client) FinancilRecords(marginAccount, symbol, types string) (*FinancialRecordResponse, error) {
 	params := make(map[string]string)
 	params["margin_account"] = strings.ToUpper(marginAccount)
 	params["contract_code"] = strings.ToUpper(symbol)
@@ -182,12 +193,14 @@ func (p *Client) FinancilRecords(marginAccount, symbol, types string) (swaps *Fi
 	if err != nil {
 		return nil, err
 	}
-	// in Close()
-	err = decode(res, &swaps)
+	var result FinancialRecordResponse
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(res.Body)
+	err = json.Unmarshal(buf.Bytes(), &result)
 	if err != nil {
 		return nil, err
 	}
-	return swaps, nil
+	return &result, nil
 }
 
 type GetIsoPositionLimitResponse struct {
@@ -202,17 +215,19 @@ type GetIsoPositionLimitResponse struct {
 	Ts int64 `json:"ts"`
 }
 
-func (p *Client) GetIsoPositionLimit() (swaps *GetIsoPositionLimitResponse, err error) {
+func (p *Client) GetIsoPositionLimit() (*GetIsoPositionLimitResponse, error) {
 	res, err := p.sendRequest("swap", http.MethodPost, "/linear-swap-api/v1/swap_position_limit", nil, nil, true)
 	if err != nil {
 		return nil, err
 	}
-	// in Close()
-	err = decode(res, &swaps)
+	var result GetIsoPositionLimitResponse
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(res.Body)
+	err = json.Unmarshal(buf.Bytes(), &result)
 	if err != nil {
 		return nil, err
 	}
-	return swaps, nil
+	return &result, nil
 }
 
 type GetCrossPositionLimitResponse struct {
@@ -227,15 +242,17 @@ type GetCrossPositionLimitResponse struct {
 	Ts int64 `json:"ts"`
 }
 
-func (p *Client) GetCrossPositionLimit() (swaps *GetCrossPositionLimitResponse, err error) {
+func (p *Client) GetCrossPositionLimit() (*GetCrossPositionLimitResponse, error) {
 	res, err := p.sendRequest("swap", http.MethodPost, "/linear-swap-api/v1/swap_cross_position_limit", nil, nil, true)
 	if err != nil {
 		return nil, err
 	}
-	// in Close()
-	err = decode(res, &swaps)
+	var result GetCrossPositionLimitResponse
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(res.Body)
+	err = json.Unmarshal(buf.Bytes(), &result)
 	if err != nil {
 		return nil, err
 	}
-	return swaps, nil
+	return &result, nil
 }

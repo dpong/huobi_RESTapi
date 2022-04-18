@@ -7,6 +7,9 @@ import (
 	"strings"
 )
 
+const SwapLimit = "limit"
+const SwapPostOnly = "post_only"
+
 type SwapPlaceOrderResponse struct {
 	Status string `json:"status"`
 	Data   struct {
@@ -18,12 +21,13 @@ type SwapPlaceOrderResponse struct {
 type SwapPlaceOrderOpts struct {
 	Symbol           string  `json:"contract_code"`
 	ClientOrderId    int64   `json:"client_order_id,omitempty"`
-	Price            float32 `json:"price,omitempty"`
+	Price            float64 `json:"price,omitempty"`
 	ContractSize     int64   `json:"volume"`
 	Side             string  `json:"direction"`
 	Offset           string  `json:"offset"`
 	LeverRate        int     `json:"lever_rate"`
 	OrderType        string  `json:"order_price_type"`
+	ReduceOnly       int     `json:"reduce_only,omitempty"`
 	TpTriggerPrice   float32 `json:"tp_trigger_price,omitempty"`
 	TpOrderPrice     float32 `json:"tp_order_price,omitempty"`
 	TpOrderPriceType string  `json:"tp_order_price_type,omitempty"`
@@ -32,7 +36,7 @@ type SwapPlaceOrderOpts struct {
 	SlOrderPriceType string  `json:"sl_order_price_type,omitempty"`
 }
 
-func (p *Client) SwapPlaceOrder(mode string, opts SwapPlaceOrderOpts) (swaps *SwapPlaceOrderResponse, err error) {
+func (p *Client) SwapPlaceOrder(mode string, opts SwapPlaceOrderOpts) (*SwapPlaceOrderResponse, error) {
 	var path string
 	switch strings.ToLower(mode) {
 	case "cross":
@@ -50,12 +54,14 @@ func (p *Client) SwapPlaceOrder(mode string, opts SwapPlaceOrderOpts) (swaps *Sw
 	if err != nil {
 		return nil, err
 	}
-	// in Close()
-	err = decode(res, &swaps)
+	var result SwapPlaceOrderResponse
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(res.Body)
+	err = json.Unmarshal(buf.Bytes(), &result)
 	if err != nil {
 		return nil, err
 	}
-	return swaps, nil
+	return &result, nil
 }
 
 type SwapCancelOrderOpts struct {
@@ -77,7 +83,7 @@ type SwapCancelOrderResponse struct {
 	Ts int64 `json:"ts"`
 }
 
-func (p *Client) SwapCancelOrder(mode string, opts SwapCancelOrderOpts) (swaps *SwapCancelOrderResponse, err error) {
+func (p *Client) SwapCancelOrder(mode string, opts SwapCancelOrderOpts) (*SwapCancelOrderResponse, error) {
 	var path string
 	switch strings.ToLower(mode) {
 	case "cross":
@@ -95,12 +101,14 @@ func (p *Client) SwapCancelOrder(mode string, opts SwapCancelOrderOpts) (swaps *
 	if err != nil {
 		return nil, err
 	}
-	// in Close()
-	err = decode(res, &swaps)
+	var result SwapCancelOrderResponse
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(res.Body)
+	err = json.Unmarshal(buf.Bytes(), &result)
 	if err != nil {
 		return nil, err
 	}
-	return swaps, nil
+	return &result, nil
 }
 
 type SwapQueryOrderResponse struct {
@@ -139,7 +147,7 @@ type SwapQueryOrderResponse struct {
 	Ts int64 `json:"ts"`
 }
 
-func (p *Client) SwapQueryOrder(mode string, opts SwapCancelOrderOpts) (swaps *SwapQueryOrderResponse, err error) {
+func (p *Client) SwapQueryOrder(mode string, opts SwapCancelOrderOpts) (*SwapQueryOrderResponse, error) {
 	var path string
 	switch strings.ToLower(mode) {
 	case "cross":
@@ -157,12 +165,14 @@ func (p *Client) SwapQueryOrder(mode string, opts SwapCancelOrderOpts) (swaps *S
 	if err != nil {
 		return nil, err
 	}
-	// in Close()
-	err = decode(res, &swaps)
+	var result SwapQueryOrderResponse
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(res.Body)
+	err = json.Unmarshal(buf.Bytes(), &result)
 	if err != nil {
 		return nil, err
 	}
-	return swaps, nil
+	return &result, nil
 }
 
 type OnlySymbolOpts struct {
@@ -178,7 +188,7 @@ type CancelAllSwapOrdersResponse struct {
 	Ts int64 `json:"ts"`
 }
 
-func (p *Client) CancelAllSwapOrders(mode string, symbol string) (swaps *CancelAllSwapOrdersResponse, err error) {
+func (p *Client) CancelAllSwapOrders(mode string, symbol string) (*CancelAllSwapOrdersResponse, error) {
 	var path string
 	switch strings.ToLower(mode) {
 	case "cross":
@@ -199,11 +209,14 @@ func (p *Client) CancelAllSwapOrders(mode string, symbol string) (swaps *CancelA
 	if err != nil {
 		return nil, err
 	}
-	err = decode(res, &swaps)
+	var result CancelAllSwapOrdersResponse
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(res.Body)
+	err = json.Unmarshal(buf.Bytes(), &result)
 	if err != nil {
 		return nil, err
 	}
-	return swaps, nil
+	return &result, nil
 }
 
 type GetSwapOpenOrdersResponse struct {
@@ -277,53 +290,71 @@ func (p *Client) GetSwapOpenOrders(mode string, symbol string) (*GetSwapOpenOrde
 	if err != nil {
 		return nil, err
 	}
-
 	return &swaps, nil
 }
 
-// type SwapPlaceBatchOrdersOpts struct {
-// 	Symbol        string `json:"contract_code"`
-// 	Side          string `json:"direction"`
-// 	OffSet        string `json:"offset"`
-// 	Type          string `json:"type"`
-// 	Amount        string `json:"amount"`
-// 	Price         string `json:"price,omitempty"`
-// 	Source        string `json:"source"`
-// 	ClientOrderID string `json:"client-order-id,omitempty"`
-// }
+type SwapPlaceBatchOrdersOpts struct {
+	Symbol           string  `json:"contract_code"`
+	ClientOrderId    int64   `json:"client_order_id,omitempty"`
+	Price            float64 `json:"price,omitempty"`
+	ContractSize     int64   `json:"volume"`
+	Side             string  `json:"direction"`
+	Offset           string  `json:"offset"`
+	LeverRate        int     `json:"lever_rate"`
+	OrderType        string  `json:"order_price_type"`
+	ReduceOnly       int     `json:"reduce_only,omitempty"`
+	TpTriggerPrice   float32 `json:"tp_trigger_price,omitempty"`
+	TpOrderPrice     float32 `json:"tp_order_price,omitempty"`
+	TpOrderPriceType string  `json:"tp_order_price_type,omitempty"`
+	SlTriggerPrice   float32 `json:"sl_trigger_price,omitempty"`
+	SlOrderPrice     float32 `json:"sl_order_price,omitempty"`
+	SlOrderPriceType string  `json:"sl_order_price_type,omitempty"`
+}
 
-// type SwapPlaceBatchOrdersResponse struct {
-// 	Status string `json:"status"`
-// 	Data   []struct {
-// 		OrderID       int64  `json:"order-id,omitempty"`
-// 		ClientOrderID string `json:"client-order-id,omitempty"`
-// 		ErrCode       string `json:"err-code,omitempty"`
-// 		ErrMsg        string `json:"err-msg,omitempty"`
-// 	} `json:"data"`
-// }
+type SwapPlaceBatchOrdersResponse struct {
+	Status string `json:"status"`
+	Data   struct {
+		Errors []struct {
+			Index   int    `json:"index"`
+			ErrCode int    `json:"err_code"`
+			ErrMsg  string `json:"err_msg"`
+		} `json:"errors"`
+		Success []struct {
+			OrderID       int64  `json:"order_id,omitempty"`
+			ClientOrderID int64  `json:"client_order_id,omitempty"`
+			Index         int    `json:"index"`
+			OrderIDStr    string `json:"order_id_str"`
+		} `json:"success"`
+	} `json:"data"`
+	Ts int64 `json:"ts"`
+}
 
-// // max 10 orders
-// func (p *Client) SwapPlaceBatchOrders(mode string, opts []SpotPlaceBatchOrdersOpts) (spot *SpotPlaceBatchOrdersResponse, err error) {
-// 	var path string
-// 	switch strings.ToLower(mode) {
-// 	case "cross":
-// 		path = "/linear-swap-api/v1/swap_cross_batchorder"
-// 	case "iso":
-// 		path = "/linear-swap-api/v1/swap_batchorder"
-// 	default:
-// 		return nil, errors.New("invaild mode for query swap order, choose mode between cross or iso")
-// 	}
-// 	body, err := json.Marshal(opts)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	res, err := p.sendRequest("spot", http.MethodPost, path, body, nil, true)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	err = decode(res, &spot)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	return spot, nil
-// }
+// not available yet
+// max 10 orders
+func (p *Client) SwapPlaceBatchOrders(mode string, opts []SwapPlaceBatchOrdersOpts) (*SwapPlaceBatchOrdersResponse, error) {
+	var path string
+	switch strings.ToLower(mode) {
+	case "cross":
+		path = "/linear-swap-api/v1/swap_cross_batchorder"
+	case "iso":
+		path = "/linear-swap-api/v1/swap_batchorder"
+	default:
+		return nil, errors.New("invaild mode for query swap order, choose mode between cross or iso")
+	}
+	body, err := json.Marshal(opts)
+	if err != nil {
+		return nil, err
+	}
+	res, err := p.sendRequest("swap", http.MethodPost, path, body, nil, true)
+	if err != nil {
+		return nil, err
+	}
+	var result SwapPlaceBatchOrdersResponse
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(res.Body)
+	err = json.Unmarshal(buf.Bytes(), &result)
+	if err != nil {
+		return nil, err
+	}
+	return &result, nil
+}

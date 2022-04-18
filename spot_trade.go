@@ -7,11 +7,11 @@ import (
 	"strings"
 )
 
-const SpotBatchBuy = "buy-limit"
-const SpotBatchSell = "sell-limit"
-const SpotBatchBuyMaker = "buy-limit-maker"
-const SpotBatchSellMaker = "sell-limit-maker"
-const SpotBatchSource = "spot-api"
+const SpotBuy = "buy-limit"
+const SpotSell = "sell-limit"
+const SpotBuyMaker = "buy-limit-maker"
+const SpotSellMaker = "sell-limit-maker"
+const SpotSource = "spot-api"
 
 type SpotPlaceOrderResponse struct {
 	Data string `json:"data,omitempty"`
@@ -31,7 +31,7 @@ type SpotPlaceOrderOpts struct {
 // types :buy-market, sell-market, buy-limit, sell-limit, buy-ioc, sell-ioc, buy-limit-maker, sell-limit-maker, buy-stop-limit, sell-stop-limit, buy-limit-fok, sell-limit-fok, buy-stop-limit-fok, sell-stop-limit-fok
 // source: spot-api, margin-api,super-margin-api,c2c-margin-api
 // for buy market order, it's order value
-func (p *Client) SpotPlaceOrder(opts SpotPlaceOrderOpts) (spot *SpotPlaceOrderResponse, err error) {
+func (p *Client) SpotPlaceOrder(opts SpotPlaceOrderOpts) (*SpotPlaceOrderResponse, error) {
 	body, err := json.Marshal(opts)
 	if err != nil {
 		return nil, err
@@ -40,15 +40,17 @@ func (p *Client) SpotPlaceOrder(opts SpotPlaceOrderOpts) (spot *SpotPlaceOrderRe
 	if err != nil {
 		return nil, err
 	}
-	// in Close()
-	err = decode(res, &spot)
+	var result SpotPlaceOrderResponse
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(res.Body)
+	err = json.Unmarshal(buf.Bytes(), &result)
 	if err != nil {
 		return nil, err
 	}
-	return spot, nil
+	return &result, nil
 }
 
-func (p *Client) SpotCancelOrder(orderID string) (spot *SpotPlaceOrderResponse, err error) {
+func (p *Client) SpotCancelOrder(orderID string) (*SpotPlaceOrderResponse, error) {
 	var buffer bytes.Buffer
 	buffer.WriteString("/v1/order/orders/")
 	buffer.WriteString(orderID)
@@ -57,12 +59,14 @@ func (p *Client) SpotCancelOrder(orderID string) (spot *SpotPlaceOrderResponse, 
 	if err != nil {
 		return nil, err
 	}
-	// in Close()
-	err = decode(res, &spot)
+	var result SpotPlaceOrderResponse
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(res.Body)
+	err = json.Unmarshal(buf.Bytes(), &result)
 	if err != nil {
 		return nil, err
 	}
-	return spot, nil
+	return &result, nil
 }
 
 type GetSpotOrderDetailResponse struct {
@@ -87,7 +91,7 @@ type GetSpotOrderDetailResponse struct {
 	} `json:"data"`
 }
 
-func (p *Client) GetSpotOrderDetail(orderID string) (spot *GetSpotOrderDetailResponse, err error) {
+func (p *Client) GetSpotOrderDetail(orderID string) (*GetSpotOrderDetailResponse, error) {
 	var buffer bytes.Buffer
 	buffer.WriteString("/v1/order/orders/")
 	buffer.WriteString(orderID)
@@ -96,12 +100,14 @@ func (p *Client) GetSpotOrderDetail(orderID string) (spot *GetSpotOrderDetailRes
 	if err != nil {
 		return nil, err
 	}
-	// in Close()
-	err = decode(res, &spot)
+	var result GetSpotOrderDetailResponse
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(res.Body)
+	err = json.Unmarshal(buf.Bytes(), &result)
 	if err != nil {
 		return nil, err
 	}
-	return spot, nil
+	return &result, nil
 }
 
 type SpotPlaceBatchOrdersOpts struct {
@@ -125,7 +131,7 @@ type SpotPlaceBatchOrdersResponse struct {
 }
 
 // max 10 orders
-func (p *Client) SpotPlaceBatchOrders(opts []SpotPlaceBatchOrdersOpts) (spot *SpotPlaceBatchOrdersResponse, err error) {
+func (p *Client) SpotPlaceBatchOrders(opts []SpotPlaceBatchOrdersOpts) (*SpotPlaceBatchOrdersResponse, error) {
 	body, err := json.Marshal(opts)
 	if err != nil {
 		return nil, err
@@ -134,12 +140,14 @@ func (p *Client) SpotPlaceBatchOrders(opts []SpotPlaceBatchOrdersOpts) (spot *Sp
 	if err != nil {
 		return nil, err
 	}
-	// in Close()
-	err = decode(res, &spot)
+	var result SpotPlaceBatchOrdersResponse
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(res.Body)
+	err = json.Unmarshal(buf.Bytes(), &result)
 	if err != nil {
 		return nil, err
 	}
-	return spot, nil
+	return &result, nil
 }
 
 type SpotGetAllOpenOrdersResponse struct {
@@ -162,26 +170,24 @@ type SpotGetAllOpenOrdersResponse struct {
 }
 
 // if want all symbols, symbol = ""
-func (p *Client) SpotGetAllOpenOrders(accountID int, symbol string) (spot *SpotGetAllOpenOrdersResponse, err error) {
+func (p *Client) SpotGetAllOpenOrders(accountID int, symbol string) (*SpotGetAllOpenOrdersResponse, error) {
 	params := make(map[string]string)
 	params["account-id"] = strconv.Itoa(accountID)
 	if symbol != "" {
 		params["symbol"] = strings.ToLower(symbol)
 	}
-	// body, err := json.Marshal(params)
-	// if err != nil {
-	// 	return nil, err
-	// }
 	res, err := p.sendRequest("spot", http.MethodGet, "/v1/order/openOrders", nil, &params, true)
 	if err != nil {
 		return nil, err
 	}
-	// in Close()
-	err = decode(res, &spot)
+	var result SpotGetAllOpenOrdersResponse
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(res.Body)
+	err = json.Unmarshal(buf.Bytes(), &result)
 	if err != nil {
 		return nil, err
 	}
-	return spot, nil
+	return &result, nil
 }
 
 type SpotCancelBatchOrdersOpts struct {
@@ -203,7 +209,7 @@ type SpotCancelBatchOrdersResponse struct {
 }
 
 // max 50 orders
-func (p *Client) SpotCancelBatchOrders(opts SpotCancelBatchOrdersOpts) (spot *SpotCancelBatchOrdersResponse, err error) {
+func (p *Client) SpotCancelBatchOrders(opts SpotCancelBatchOrdersOpts) (*SpotCancelBatchOrdersResponse, error) {
 	body, err := json.Marshal(opts)
 	if err != nil {
 		return nil, err
@@ -212,10 +218,12 @@ func (p *Client) SpotCancelBatchOrders(opts SpotCancelBatchOrdersOpts) (spot *Sp
 	if err != nil {
 		return nil, err
 	}
-	// in Close()
-	err = decode(res, &spot)
+	var result SpotCancelBatchOrdersResponse
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(res.Body)
+	err = json.Unmarshal(buf.Bytes(), &result)
 	if err != nil {
 		return nil, err
 	}
-	return spot, nil
+	return &result, nil
 }
