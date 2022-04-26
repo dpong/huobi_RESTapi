@@ -698,16 +698,17 @@ func (w *huobiWebsocket) handleHuobiSocketData(product string, res *map[string]i
 				*mainCh <- data
 				return nil
 			}
-		case "ticker": // spot ticker
+		case "bbo": // spot ticker
 			data, okd := (*res)["tick"].(map[string]interface{})
 			if okd {
 				if ts, ok := (*res)["ts"].(float64); !ok {
 					m := w.outHuobiErr()
 					*mainCh <- m
-					return errors.New("got no ts when receving ticker data")
+					return errors.New("got no ts when receving bbo data")
 				} else {
 					stamp := formatingTimeStamp(ts)
-					if time.Now().After(stamp.Add(time.Second * 2)) {
+					now := time.Now()
+					if now.After(stamp.Add(time.Second * 2)) {
 						w.outHuobiErr()
 						err := errors.New("websocket data delay more than 2 sec")
 						return err

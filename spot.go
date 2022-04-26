@@ -147,3 +147,40 @@ func (p *Client) GetLastTrade(symbol string) (*GetLastTradeResponse, error) {
 	}
 	return &result, nil
 }
+
+type GetSpotDetailResponse struct {
+	Ch     string `json:"ch"`
+	Status string `json:"status"`
+	Ts     int64  `json:"ts"`
+	Tick   struct {
+		ID      int64     `json:"id"`
+		Version int64     `json:"version"`
+		Open    float64   `json:"open"`
+		Close   float64   `json:"close"`
+		Low     float64   `json:"low"`
+		High    float64   `json:"high"`
+		Amount  float64   `json:"amount"`
+		Vol     float64   `json:"vol"`
+		Count   int       `json:"count"`
+		Bid     []float64 `json:"bid"`
+		Ask     []float64 `json:"ask"`
+	} `json:"tick"`
+}
+
+func (p *Client) GetSpotDetail(symbol string) (*GetSpotDetailResponse, error) {
+	url := "/market/detail/merged"
+	params := make(map[string]string)
+	params["symbol"] = strings.ToLower(symbol)
+	res, err := p.sendRequest("spot", http.MethodGet, url, nil, &params, false)
+	if err != nil {
+		return nil, err
+	}
+	var result GetSpotDetailResponse
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(res.Body)
+	err = json.Unmarshal(buf.Bytes(), &result)
+	if err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
