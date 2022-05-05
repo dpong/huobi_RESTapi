@@ -159,8 +159,8 @@ func (s *StreamTickerBranch) maintainStreamTicker(
 			s.updateAskData(askPrice, askQty)
 			lastUpdate = time.Now()
 		default:
-			if time.Now().After(lastUpdate.Add(time.Second * 60)) {
-				// 60 sec without updating
+			if time.Now().After(lastUpdate.Add(time.Second * 300)) {
+				// 300 sec without updating
 				err := errors.New("reconnect because of time out")
 				*errCh <- err
 				return err
