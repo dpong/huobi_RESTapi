@@ -648,7 +648,7 @@ func huobiOrderBookSocket(
 	}
 }
 
-type HuobiPing struct {
+type huobiPing struct {
 	Pong float64 `json:"pong"`
 }
 
@@ -663,7 +663,7 @@ func (w *huobiWebsocket) handleHuobiSocketData(product string, res *map[string]i
 				*mainCh <- m
 				return errors.New("got nil when updating event time")
 			} else {
-				stamp := formatingTimeStamp(st)
+				stamp := time.UnixMilli(int64(st))
 				if time.Now().After(stamp.Add(time.Second * 5)) {
 					m := w.outHuobiErr()
 					*mainCh <- m
@@ -699,14 +699,14 @@ func (w *huobiWebsocket) handleHuobiSocketData(product string, res *map[string]i
 				return nil
 			}
 		case "bbo": // spot ticker
-			data, okd := (*res)["tick"].(map[string]interface{})
+			_, okd := (*res)["tick"].(map[string]interface{})
 			if okd {
 				if ts, ok := (*res)["ts"].(float64); !ok {
 					m := w.outHuobiErr()
 					*mainCh <- m
 					return errors.New("got no ts when receving bbo data")
 				} else {
-					stamp := formatingTimeStamp(ts)
+					stamp := time.UnixMilli(int64(ts))
 					now := time.Now()
 					if now.After(stamp.Add(time.Second * 2)) {
 						w.outHuobiErr()
@@ -714,7 +714,7 @@ func (w *huobiWebsocket) handleHuobiSocketData(product string, res *map[string]i
 						return err
 					}
 				}
-				*mainCh <- data
+				*mainCh <- *res
 				return nil
 			}
 		}
@@ -726,7 +726,7 @@ func (w *huobiWebsocket) handleHuobiSocketData(product string, res *map[string]i
 
 	pong, ok := (*res)["ping"].(float64)
 	if ok {
-		mm := HuobiPing{
+		mm := huobiPing{
 			Pong: pong,
 		}
 		message, err := json.Marshal(mm)
@@ -806,9 +806,4 @@ func getHuobiSnapShotReqMessage(product, channel, symbol, depth string) ([]byte,
 		return nil, err
 	}
 	return message, nil
-}
-
-func formatingTimeStamp(timeFloat float64) time.Time {
-	t := time.Unix(int64(timeFloat/1000), 0)
-	return t
 }

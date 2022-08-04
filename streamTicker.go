@@ -23,9 +23,10 @@ type StreamTickerBranch struct {
 }
 
 type tobBranch struct {
-	mux   sync.RWMutex
-	price string
-	qty   string
+	mux       sync.RWMutex
+	price     string
+	qty       string
+	timeStamp time.Time
 }
 
 // func SwapStreamTicker(symbol string, logger *log.Logger) *StreamTickerBranch {
@@ -86,40 +87,42 @@ func (s *StreamTickerBranch) Close() {
 	s.ask.mux.Unlock()
 }
 
-func (s *StreamTickerBranch) GetBid() (price, qty string, ok bool) {
+func (s *StreamTickerBranch) GetBid() (price, qty string, timeStamp time.Time, ok bool) {
 	s.bid.mux.RLock()
 	defer s.bid.mux.RUnlock()
 	price = s.bid.price
 	qty = s.bid.qty
 	if price == NullPrice || price == "" {
-		return price, qty, false
+		return price, qty, s.bid.timeStamp, false
 	}
-	return price, qty, true
+	return price, qty, s.bid.timeStamp, true
 }
 
-func (s *StreamTickerBranch) GetAsk() (price, qty string, ok bool) {
+func (s *StreamTickerBranch) GetAsk() (price, qty string, timeStamp time.Time, ok bool) {
 	s.ask.mux.RLock()
 	defer s.ask.mux.RUnlock()
 	price = s.ask.price
 	qty = s.ask.qty
 	if price == NullPrice || price == "" {
-		return price, qty, false
+		return price, qty, s.ask.timeStamp, false
 	}
-	return price, qty, true
+	return price, qty, s.ask.timeStamp, true
 }
 
-func (s *StreamTickerBranch) updateBidData(price, qty string) {
+func (s *StreamTickerBranch) updateBidData(price, qty string, stamp time.Time) {
 	s.bid.mux.Lock()
 	defer s.bid.mux.Unlock()
 	s.bid.price = price
 	s.bid.qty = qty
+	s.bid.timeStamp = stamp
 }
 
-func (s *StreamTickerBranch) updateAskData(price, qty string) {
+func (s *StreamTickerBranch) updateAskData(price, qty string, stamp time.Time) {
 	s.ask.mux.Lock()
 	defer s.ask.mux.Unlock()
 	s.ask.price = price
 	s.ask.qty = qty
+	s.ask.timeStamp = stamp
 }
 
 func (s *StreamTickerBranch) maintainStreamTicker(
@@ -133,7 +136,12 @@ func (s *StreamTickerBranch) maintainStreamTicker(
 		select {
 		case <-ctx.Done():
 			return nil
-		case message := <-(*ticker):
+		case data := <-(*ticker):
+			message := data["tick"].(map[string]interface{})
+			var stamp time.Time
+			if ts, ok := data["ts"].(float64); ok {
+				stamp = time.UnixMilli(int64(ts))
+			}
 			var bidPrice, askPrice, bidQty, askQty string
 			if bid, ok := message["bid"].(float64); ok {
 				bidDec := decimal.NewFromFloat(bid)
@@ -155,8 +163,9 @@ func (s *StreamTickerBranch) maintainStreamTicker(
 				askQtyDec := decimal.NewFromFloat(askqty)
 				askQty = askQtyDec.String()
 			}
-			s.updateBidData(bidPrice, bidQty)
-			s.updateAskData(askPrice, askQty)
+
+			s.updateBidData(bidPrice, bidQty, stamp)
+			s.updateAskData(askPrice, askQty, stamp)
 			lastUpdate = time.Now()
 		default:
 			if time.Now().After(lastUpdate.Add(time.Second * 300)) {
@@ -281,8 +290,8 @@ func (s *StreamTickerBranch) initialWithSpotDetail(product, symbol string) error
 			return errors.New("return is not ok when intial spot detail")
 		}
 		// 0 => price, 1 => qty
-		s.updateBidData(decimal.NewFromFloat(res.Tick.Bid[0]).String(), decimal.NewFromFloat(res.Tick.Bid[1]).String())
-		s.updateAskData(decimal.NewFromFloat(res.Tick.Ask[0]).String(), decimal.NewFromFloat(res.Tick.Ask[1]).String())
+		s.updateBidData(decimal.NewFromFloat(res.Tick.Bid[0]).String(), decimal.NewFromFloat(res.Tick.Bid[1]).String(), time.UnixMilli(res.Ts))
+		s.updateAskData(decimal.NewFromFloat(res.Tick.Ask[0]).String(), decimal.NewFromFloat(res.Tick.Ask[1]).String(), time.UnixMilli(res.Ts))
 	case "swap":
 		//
 	default:

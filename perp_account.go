@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-type SwapCrossAccountInfoResponse struct {
+type PerpCrossAccountInfoResponse struct {
 	Status string `json:"status"`
 	Data   []struct {
 		MarginMode        string               `json:"margin_mode"`
@@ -37,12 +37,12 @@ type ContractDetailData struct {
 	AdjustFactor     float64 `json:"adjust_factor"`
 }
 
-func (p *Client) SwapAccountInfo() (*SwapCrossAccountInfoResponse, error) {
+func (p *Client) PerpAccountInfo() (*PerpCrossAccountInfoResponse, error) {
 	res, err := p.sendRequest("swap", http.MethodPost, "/linear-swap-api/v1/swap_cross_account_info", nil, nil, true)
 	if err != nil {
 		return nil, err
 	}
-	var result SwapCrossAccountInfoResponse
+	var result PerpCrossAccountInfoResponse
 	buf := new(bytes.Buffer)
 	buf.ReadFrom(res.Body)
 	err = json.Unmarshal(buf.Bytes(), &result)
@@ -52,7 +52,7 @@ func (p *Client) SwapAccountInfo() (*SwapCrossAccountInfoResponse, error) {
 	return &result, nil
 }
 
-type SwapCrossAccountPositionResponse struct {
+type PerpCrossAccountPositionResponse struct {
 	Status string `json:"status"`
 	Data   struct {
 		Positions         []PositionData       `json:"positions"`
@@ -72,7 +72,7 @@ type SwapCrossAccountPositionResponse struct {
 	Ts int64 `json:"ts"`
 }
 
-func (p *Client) SwapAccountPositionInfo() (*SwapCrossAccountPositionResponse, error) {
+func (p *Client) PerpAccountPositionInfo() (*PerpCrossAccountPositionResponse, error) {
 	params := make(map[string]string)
 	params["margin_account"] = "USDT"
 	body, err := json.Marshal(params)
@@ -83,7 +83,7 @@ func (p *Client) SwapAccountPositionInfo() (*SwapCrossAccountPositionResponse, e
 	if err != nil {
 		return nil, err
 	}
-	var result SwapCrossAccountPositionResponse
+	var result PerpCrossAccountPositionResponse
 	buf := new(bytes.Buffer)
 	buf.ReadFrom(res.Body)
 	err = json.Unmarshal(buf.Bytes(), &result)
@@ -93,18 +93,18 @@ func (p *Client) SwapAccountPositionInfo() (*SwapCrossAccountPositionResponse, e
 	return &result, nil
 }
 
-type SwapPositionResponse struct {
+type PerpPositionResponse struct {
 	Status string         `json:"status"`
 	Data   []PositionData `json:"data"`
 	Ts     int64          `json:"ts"`
 }
 
-func (p *Client) SwapPositionInfo() (*SwapPositionResponse, error) {
+func (p *Client) PerpPositionInfo() (*PerpPositionResponse, error) {
 	res, err := p.sendRequest("swap", http.MethodPost, "/linear-swap-api/v1/swap_cross_position_info", nil, nil, true)
 	if err != nil {
 		return nil, err
 	}
-	var result SwapPositionResponse
+	var result PerpPositionResponse
 	buf := new(bytes.Buffer)
 	buf.ReadFrom(res.Body)
 	err = json.Unmarshal(buf.Bytes(), &result)
@@ -134,7 +134,7 @@ type PositionData struct {
 	MarginAccount  string  `json:"margin_account"`
 }
 
-type SwapIsoAccountPositionResponse struct {
+type PerpIsoAccountPositionResponse struct {
 	Status string `json:"status"`
 	Data   []struct {
 		Symbol            string         `json:"symbol"`
@@ -159,7 +159,7 @@ type SwapIsoAccountPositionResponse struct {
 	Ts int64 `json:"ts"`
 }
 
-func (p *Client) SwapIsoAccountPositionInfo(symbol string) (*SwapIsoAccountPositionResponse, error) {
+func (p *Client) PerpIsoAccountPositionInfo(symbol string) (*PerpIsoAccountPositionResponse, error) {
 	params := make(map[string]string)
 	params["contract_code"] = strings.ToUpper(symbol)
 	body, err := json.Marshal(params)
@@ -170,7 +170,7 @@ func (p *Client) SwapIsoAccountPositionInfo(symbol string) (*SwapIsoAccountPosit
 	if err != nil {
 		return nil, err
 	}
-	var result SwapIsoAccountPositionResponse
+	var result PerpIsoAccountPositionResponse
 	buf := new(bytes.Buffer)
 	buf.ReadFrom(res.Body)
 	err = json.Unmarshal(buf.Bytes(), &result)
@@ -180,13 +180,13 @@ func (p *Client) SwapIsoAccountPositionInfo(symbol string) (*SwapIsoAccountPosit
 	return &result, nil
 }
 
-type SwapIsoAccountResponse struct {
+type PerpIsoAccountResponse struct {
 	Status string                `json:"status"`
-	Data   []*SwapIsoAccountData `json:"data"`
+	Data   []*PerpIsoAccountData `json:"data"`
 	Ts     int64                 `json:"ts"`
 }
 
-type SwapIsoAccountData struct {
+type PerpIsoAccountData struct {
 	Symbol            string  `json:"symbol"`
 	MarginBalance     float64 `json:"margin_balance"`
 	MarginPosition    float64 `json:"margin_position"`
@@ -206,12 +206,12 @@ type SwapIsoAccountData struct {
 	MarginAccount     string  `json:"margin_account"`
 }
 
-func (p *Client) SwapIsoAccountInfo() (*SwapIsoAccountResponse, error) {
+func (p *Client) PerpIsoAccountInfo() (*PerpIsoAccountResponse, error) {
 	res, err := p.sendRequest("swap", http.MethodPost, "/linear-swap-api/v1/swap_account_info", nil, nil, true)
 	if err != nil {
 		return nil, err
 	}
-	var result SwapIsoAccountResponse
+	var result PerpIsoAccountResponse
 	buf := new(bytes.Buffer)
 	buf.ReadFrom(res.Body)
 	err = json.Unmarshal(buf.Bytes(), &result)
@@ -221,12 +221,12 @@ func (p *Client) SwapIsoAccountInfo() (*SwapIsoAccountResponse, error) {
 	return &result, nil
 }
 
-func (p *Client) SwapIsoPositionInfo() (*SwapPositionResponse, error) {
+func (p *Client) PerpIsoPositionInfo() (*PerpPositionResponse, error) {
 	res, err := p.sendRequest("swap", http.MethodPost, "/linear-swap-api/v1/swap_position_info", nil, nil, true)
 	if err != nil {
 		return nil, err
 	}
-	var result SwapPositionResponse
+	var result PerpPositionResponse
 	buf := new(bytes.Buffer)
 	buf.ReadFrom(res.Body)
 	err = json.Unmarshal(buf.Bytes(), &result)

@@ -25,6 +25,8 @@ type Client struct {
 	subaccount  string
 	HTTPC       *http.Client
 	aws         bool
+
+	spotPrivateChannel *spotPrivateChannelBranch
 }
 
 func New(key, secret, subaccount string, isAws bool) *Client {

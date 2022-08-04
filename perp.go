@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-type SwapsResponse struct {
+type PerpsResponse struct {
 	Status string `json:"status"`
 	Data   []struct {
 		Symbol         string  `json:"symbol"`
@@ -21,7 +21,7 @@ type SwapsResponse struct {
 	Ts int64 `json:"ts"`
 }
 
-func (p *Client) Swaps(mode string) (*SwapsResponse, error) {
+func (p *Client) Swaps(mode string) (*PerpsResponse, error) {
 	params := make(map[string]string)
 	if mode != "" {
 		params["support_margin_mode"] = strings.ToLower(mode)
@@ -34,7 +34,7 @@ func (p *Client) Swaps(mode string) (*SwapsResponse, error) {
 	if err != nil {
 		return nil, err
 	}
-	var result SwapsResponse
+	var result PerpsResponse
 	buf := new(bytes.Buffer)
 	buf.ReadFrom(res.Body)
 	err = json.Unmarshal(buf.Bytes(), &result)
@@ -44,7 +44,7 @@ func (p *Client) Swaps(mode string) (*SwapsResponse, error) {
 	return &result, nil
 }
 
-type SwapOpenInterestResponse struct {
+type PerpOpenInterestResponse struct {
 	Status string `json:"status"`
 	Data   []struct {
 		Volume        float64 `json:"volume"`
@@ -59,12 +59,12 @@ type SwapOpenInterestResponse struct {
 	Ts int64 `json:"ts"`
 }
 
-func (p *Client) SwapOpenInterests() (*SwapOpenInterestResponse, error) {
+func (p *Client) PerpOpenInterests() (*PerpOpenInterestResponse, error) {
 	res, err := p.sendRequest("swap", http.MethodGet, "/linear-swap-api/v1/swap_open_interest", nil, nil, false)
 	if err != nil {
 		return nil, err
 	}
-	var result SwapOpenInterestResponse
+	var result PerpOpenInterestResponse
 	buf := new(bytes.Buffer)
 	buf.ReadFrom(res.Body)
 	err = json.Unmarshal(buf.Bytes(), &result)
@@ -74,7 +74,7 @@ func (p *Client) SwapOpenInterests() (*SwapOpenInterestResponse, error) {
 	return &result, nil
 }
 
-type SwapNextFundingResponse struct {
+type PerpNextFundingResponse struct {
 	Status string `json:"status"`
 	Data   []struct {
 		EstimatedRate   string `json:"estimated_rate"`
@@ -88,12 +88,12 @@ type SwapNextFundingResponse struct {
 	Ts int64 `json:"ts"`
 }
 
-func (p *Client) SwapNextFundings() (*SwapNextFundingResponse, error) {
+func (p *Client) PerpNextFundings() (*PerpNextFundingResponse, error) {
 	res, err := p.sendRequest("swap", http.MethodGet, "/linear-swap-api/v1/swap_batch_funding_rate", nil, nil, false)
 	if err != nil {
 		return nil, err
 	}
-	var result SwapNextFundingResponse
+	var result PerpNextFundingResponse
 	buf := new(bytes.Buffer)
 	buf.ReadFrom(res.Body)
 	err = json.Unmarshal(buf.Bytes(), &result)
@@ -103,7 +103,7 @@ func (p *Client) SwapNextFundings() (*SwapNextFundingResponse, error) {
 	return &result, nil
 }
 
-type SwapCrossMarginLeverages struct {
+type PerpCrossMarginLeverages struct {
 	Status string `json:"status"`
 	Data   []struct {
 		ContractCode       string `json:"contract_code"`
@@ -113,12 +113,12 @@ type SwapCrossMarginLeverages struct {
 	Ts int64 `json:"ts"`
 }
 
-func (p *Client) SwapLeverages() (*SwapCrossMarginLeverages, error) {
+func (p *Client) PerpLeverages() (*PerpCrossMarginLeverages, error) {
 	res, err := p.sendRequest("swap", http.MethodPost, "/linear-swap-api/v1/swap_cross_available_level_rate", nil, nil, true)
 	if err != nil {
 		return nil, err
 	}
-	var result SwapCrossMarginLeverages
+	var result PerpCrossMarginLeverages
 	buf := new(bytes.Buffer)
 	buf.ReadFrom(res.Body)
 	err = json.Unmarshal(buf.Bytes(), &result)
@@ -128,14 +128,14 @@ func (p *Client) SwapLeverages() (*SwapCrossMarginLeverages, error) {
 	return &result, nil
 }
 
-type SwapAssetTransferResponse struct {
+type PerpAssetTransferResponse struct {
 	Code    int    `json:"code"`
 	Data    int    `json:"data"`
 	Message string `json:"message"`
 	Success bool   `json:"success"`
 }
 
-func (p *Client) SwapAssetTransfer(from, to, currency, marginAccount string, amount float64) (*SwapAssetTransferResponse, error) {
+func (p *Client) PerpAssetTransfer(from, to, currency, marginAccount string, amount float64) (*PerpAssetTransferResponse, error) {
 	params := make(map[string]string)
 	params["from"] = strings.ToLower(from) //spot、linear-swap
 	params["to"] = strings.ToLower(to)
@@ -150,7 +150,7 @@ func (p *Client) SwapAssetTransfer(from, to, currency, marginAccount string, amo
 	if err != nil {
 		return nil, err
 	}
-	var result SwapAssetTransferResponse
+	var result PerpAssetTransferResponse
 	buf := new(bytes.Buffer)
 	buf.ReadFrom(res.Body)
 	err = json.Unmarshal(buf.Bytes(), &result)

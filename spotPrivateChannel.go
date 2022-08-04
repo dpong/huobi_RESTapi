@@ -14,13 +14,13 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-type SpotUserDataBranch struct {
+type spotPrivateChannelBranch struct {
 	account            AccountBranch
 	accountID          int
 	cancel             *context.CancelFunc
 	httpUpdateInterval int
 	errs               chan error
-	trades             chan TradeData
+	tradeSets          tradeDataMap
 }
 
 type AccountBranch struct {
@@ -28,24 +28,31 @@ type AccountBranch struct {
 	Data *GetAccountDataResponse
 }
 
-type TradeData struct {
+type UserTradeData struct {
 	Symbol    string
 	Side      string
 	Oid       string
+	OrderType string
 	IsMaker   bool
 	Price     decimal.Decimal
 	Qty       decimal.Decimal
 	Fee       decimal.Decimal
+	FeeAsset  string
 	TimeStamp time.Time
 }
 
-type HuobiAuthSubscribeMessage struct {
+type tradeDataMap struct {
+	mux sync.RWMutex
+	set map[string][]UserTradeData
+}
+
+type authSubscribeMessage struct {
 	Op    string `json:"op"`
 	Cid   string `json:"cid, omitempty"`
 	Topic string `json:"topic"`
 }
 
-type HuobiSpotSocketSub struct {
+type spotSocketSub struct {
 	Action string `json:"action"`
 	Ch     string `json:"ch"`
 	Params struct {
@@ -58,41 +65,74 @@ type HuobiSpotSocketSub struct {
 	} `json:"params,omitempty"`
 }
 
-type HuobiAuthPing struct {
+type authPing struct {
 	Action string `json:"action"`
 	Data   struct {
 		Ts float64 `json:"ts"`
 	} `json:"data"`
 }
 
-func (u *SpotUserDataBranch) Close() {
-	(*u.cancel)()
+func (c *Client) CloseSpotPrivateChannel() {
+	(*c.spotPrivateChannel.cancel)()
 }
 
-func (u *SpotUserDataBranch) AccountData() (*GetAccountDataResponse, error) {
+func (c *Client) InitSpotPrivateChannel(id int, logger *log.Logger) {
+	c.spotPrivateChannelStream(id, logger)
+}
+
+func (u *spotPrivateChannelBranch) SpotAccountData() (*GetAccountDataResponse, error) {
 	u.account.RLock()
 	defer u.account.RUnlock()
 	return u.account.Data, u.readerrs()
 }
 
-func (u *SpotUserDataBranch) ReadTrade() (TradeData, error) {
-	if data, ok := <-u.trades; ok {
-		return data, nil
+// err is no trade
+// mix up with multiple symbol's trade data
+func (c *Client) ReadSpotUserTrade() ([]UserTradeData, error) {
+	c.spotPrivateChannel.tradeSets.mux.Lock()
+	defer c.spotPrivateChannel.tradeSets.mux.Unlock()
+	var result []UserTradeData
+	for key, item := range c.spotPrivateChannel.tradeSets.set {
+		// each symbol
+		result = append(result, item...)
+		// earse old data
+		new := []UserTradeData{}
+		c.spotPrivateChannel.tradeSets.set[key] = new
 	}
-	return TradeData{}, errors.New("trade channel already closed.")
+	if len(result) == 0 {
+		return result, errors.New("no trade data")
+	}
+	return result, nil
 }
 
-func (u *SpotUserDataBranch) SetAccountID(input int) {
+func (u *spotPrivateChannelBranch) SetAccountID(input int) {
 	u.accountID = input
 }
 
 // default is 60 sec
-func (u *SpotUserDataBranch) SetHttpUpdateInterval(input int) {
+func (u *spotPrivateChannelBranch) SetHttpUpdateInterval(input int) {
 	u.httpUpdateInterval = input
 }
 
-func (c *Client) SpotLocalUserData(id int, logger *log.Logger) *SpotUserDataBranch {
-	var u SpotUserDataBranch
+// internal
+
+func (u *spotPrivateChannelBranch) insertTrade(input *UserTradeData) {
+	u.tradeSets.mux.Lock()
+	defer u.tradeSets.mux.Unlock()
+	if _, ok := u.tradeSets.set[input.Symbol]; !ok {
+		// not in the map yet
+		data := []UserTradeData{*input}
+		u.tradeSets.set[input.Symbol] = data
+	} else {
+		// already in the map
+		data := u.tradeSets.set[input.Symbol]
+		data = append(data, *input)
+		u.tradeSets.set[input.Symbol] = data
+	}
+}
+
+func (c *Client) spotPrivateChannelStream(id int, logger *log.Logger) {
+	u := new(spotPrivateChannelBranch)
 	ctx, cancel := context.WithCancel(context.Background())
 	u.cancel = &cancel
 	u.httpUpdateInterval = 60
@@ -127,12 +167,12 @@ func (c *Client) SpotLocalUserData(id int, logger *log.Logger) *SpotUserDataBran
 			}
 		}
 	}()
+	c.spotPrivateChannel = u
 	// wait for connecting
 	time.Sleep(time.Second * 5)
-	return &u
 }
 
-func (u *SpotUserDataBranch) getAccountSnapShot(client *Client) error {
+func (u *spotPrivateChannelBranch) getAccountSnapShot(client *Client) error {
 	u.account.Lock()
 	defer u.account.Unlock()
 	res, err := client.GetAccountData(u.accountID)
@@ -143,7 +183,7 @@ func (u *SpotUserDataBranch) getAccountSnapShot(client *Client) error {
 	return nil
 }
 
-func (u *SpotUserDataBranch) maintainSpotUserData(
+func (u *spotPrivateChannelBranch) maintainSpotUserData(
 	ctx context.Context,
 	client *Client,
 	userData *chan map[string]interface{},
@@ -173,7 +213,6 @@ func (u *SpotUserDataBranch) maintainSpotUserData(
 		select {
 		case <-ctx.Done():
 			close(u.errs)
-			close(u.trades)
 			return nil
 		default:
 			message := <-(*userData)
@@ -205,7 +244,7 @@ func (u *SpotUserDataBranch) maintainSpotUserData(
 	}
 }
 
-func (u *SpotUserDataBranch) updateSpotAccountData(currency, accountType, balance string) {
+func (u *spotPrivateChannelBranch) updateSpotAccountData(currency, accountType, balance string) {
 	u.account.Lock()
 	defer u.account.Unlock()
 	for idx, data := range u.account.Data.Data.List {
@@ -241,8 +280,6 @@ func spotUserData(ctx context.Context, key, secret string, logger *log.Logger, m
 			return err
 		}
 	}
-	read := time.NewTicker(time.Millisecond * 100)
-	defer read.Stop()
 	for {
 		select {
 		case <-ctx.Done():
@@ -250,7 +287,7 @@ func spotUserData(ctx context.Context, key, secret string, logger *log.Logger, m
 			message := "Huobi User Data closing..."
 			logger.Warningln(message)
 			return errors.New(message)
-		case <-read.C:
+		default:
 			if w.Conn == nil {
 				w.outHuobiErr()
 				message := "Huobi User Data reconnect..."
@@ -264,7 +301,7 @@ func spotUserData(ctx context.Context, key, secret string, logger *log.Logger, m
 				logger.Warningln(message)
 				return errors.New(message)
 			}
-			res, err1 := DecodingMap(buf, logger)
+			res, err1 := decodingMap(buf, logger)
 			if err1 != nil {
 				w.outHuobiErr()
 				message := "Huobi User Data reconnect..."
@@ -281,8 +318,6 @@ func spotUserData(ctx context.Context, key, secret string, logger *log.Logger, m
 			if err := w.Conn.SetReadDeadline(time.Now().Add(time.Second * duration)); err != nil {
 				return err
 			}
-		default:
-			time.Sleep(time.Millisecond * 50)
 		}
 	}
 }
@@ -305,7 +340,7 @@ func getAuthSubscribeMessage(host, path, key, secret string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	auth := HuobiSpotSocketSub{
+	auth := spotSocketSub{
 		Action: "req",
 		Ch:     "auth",
 	}
@@ -323,9 +358,25 @@ func getAuthSubscribeMessage(host, path, key, secret string) ([]byte, error) {
 }
 
 func getSpotAccountUpdateSubMessage() ([]byte, error) {
-	raw := HuobiSpotSocketSub{
+	raw := spotSocketSub{
 		Action: "sub",
 		Ch:     "accounts.update",
+	}
+	message, err := json.Marshal(raw)
+	if err != nil {
+		return nil, err
+	}
+	return message, nil
+}
+
+func getSpotTradeSubMessage(symbol string) ([]byte, error) {
+	var buffer bytes.Buffer
+	buffer.WriteString("trade.clearing#")
+	buffer.WriteString(strings.ToLower(symbol))
+	buffer.WriteString("#0")
+	raw := spotSocketSub{
+		Action: "sub",
+		Ch:     buffer.String(),
 	}
 	message, err := json.Marshal(raw)
 	if err != nil {
@@ -341,7 +392,7 @@ func (w *huobiWebsocket) HandleHuobiSpotUserData(res *map[string]interface{}, ma
 		case "ping":
 			data := (*res)["data"].(map[string]interface{})
 			ts := data["ts"].(float64)
-			mm := HuobiAuthPing{
+			mm := authPing{
 				Action: "pong",
 			}
 			mm.Data.Ts = ts
@@ -394,7 +445,7 @@ func (w *huobiWebsocket) HandleHuobiSpotUserData(res *map[string]interface{}, ma
 	return nil
 }
 
-func DecodingMap(message []byte, logger *log.Logger) (res map[string]interface{}, err error) {
+func decodingMap(message []byte, logger *log.Logger) (res map[string]interface{}, err error) {
 	if message == nil {
 		err = errors.New("the incoming message is nil")
 		logger.Println(err)
@@ -408,27 +459,19 @@ func DecodingMap(message []byte, logger *log.Logger) (res map[string]interface{}
 	return res, nil
 }
 
-func (u *SpotUserDataBranch) initialChannels() {
+func (u *spotPrivateChannelBranch) initialChannels() {
 	// 5 err is allowed
 	u.errs = make(chan error, 5)
-	u.trades = make(chan TradeData, 100)
 }
 
-func (u *SpotUserDataBranch) insertErr(input error) {
+func (u *spotPrivateChannelBranch) insertErr(input error) {
 	if len(u.errs) == cap(u.errs) {
 		<-u.errs
 	}
 	u.errs <- input
 }
 
-func (u *SpotUserDataBranch) insertTrade(input *TradeData) {
-	if len(u.trades) == cap(u.trades) {
-		<-u.trades
-	}
-	u.trades <- *input
-}
-
-func (u *SpotUserDataBranch) readerrs() error {
+func (u *spotPrivateChannelBranch) readerrs() error {
 	var buffer bytes.Buffer
 	for {
 		select {
