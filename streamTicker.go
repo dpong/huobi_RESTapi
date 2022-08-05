@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -20,6 +21,8 @@ type StreamTickerBranch struct {
 	ask    tobBranch
 	cancel *context.CancelFunc
 	reCh   chan error
+
+	contractSize decimal.Decimal
 }
 
 type tobBranch struct {
@@ -29,9 +32,10 @@ type tobBranch struct {
 	timeStamp time.Time
 }
 
-// func SwapStreamTicker(symbol string, logger *log.Logger) *StreamTickerBranch {
-// 	return localStreamTicker("swap", symbol, logger)
-// }
+// ex: symbol = BTC-USDT
+func PerpStreamTicker(symbol string, logger *log.Logger) *StreamTickerBranch {
+	return localStreamTicker("swap", symbol, logger)
+}
 
 // ex: symbol = btcusdt
 func SpotStreamTicker(symbol string, logger *log.Logger) *StreamTickerBranch {
@@ -44,8 +48,24 @@ func localStreamTicker(product, symbol string, logger *log.Logger) *StreamTicker
 	s.cancel = &cancel
 	ticker := make(chan map[string]interface{}, 50)
 	errCh := make(chan error, 5)
-	// initial data with rest api first
-	s.initialWithSpotDetail(product, symbol)
+
+	if product == "swap" {
+		client := New("", "", "", false)
+		res, err := client.Perps("")
+		if err != nil {
+			logger.Errorf("fail to get perp info, fail to init stream ticker")
+			return nil
+		}
+		for _, item := range res.Data {
+			if item.ContractCode == symbol {
+
+				// test
+				fmt.Println(item)
+				s.contractSize = decimal.NewFromFloat(item.ContractSize)
+			}
+		}
+	}
+
 	go func() {
 		for {
 			select {
@@ -131,7 +151,6 @@ func (s *StreamTickerBranch) maintainStreamTicker(
 	ticker *chan map[string]interface{},
 	errCh *chan error,
 ) error {
-	lastUpdate := time.Now()
 	for {
 		select {
 		case <-ctx.Done():
@@ -143,38 +162,50 @@ func (s *StreamTickerBranch) maintainStreamTicker(
 				stamp = time.UnixMilli(int64(ts))
 			}
 			var bidPrice, askPrice, bidQty, askQty string
-			if bid, ok := message["bid"].(float64); ok {
-				bidDec := decimal.NewFromFloat(bid)
-				bidPrice = bidDec.String()
-			} else {
-				bidPrice = NullPrice
+			switch product {
+			case "spot":
+				if bid, ok := message["bid"].(float64); ok {
+					bidDec := decimal.NewFromFloat(bid)
+					bidPrice = bidDec.String()
+				} else {
+					bidPrice = NullPrice
+				}
+				if ask, ok := message["ask"].(float64); ok {
+					askDec := decimal.NewFromFloat(ask)
+					askPrice = askDec.String()
+				} else {
+					askPrice = NullPrice
+				}
+				if bidqty, ok := message["bidSize"].(float64); ok {
+					bidQtyDec := decimal.NewFromFloat(bidqty)
+					bidQty = bidQtyDec.String()
+				}
+				if askqty, ok := message["askSize"].(float64); ok {
+					askQtyDec := decimal.NewFromFloat(askqty)
+					askQty = askQtyDec.String()
+				}
+			case "swap":
+				if bid, ok := message["bid"].([]interface{}); ok {
+					bidDec := decimal.NewFromFloat(bid[0].(float64))
+					bidPrice = bidDec.String()
+					bidQtyDec := decimal.NewFromFloat(bid[1].(float64))
+					intoSize := bidQtyDec.Mul(s.contractSize)
+					bidQty = intoSize.String()
+				} else {
+					bidPrice = NullPrice
+				}
+				if ask, ok := message["ask"].([]interface{}); ok {
+					askDec := decimal.NewFromFloat(ask[0].(float64))
+					askPrice = askDec.String()
+					askQtyDec := decimal.NewFromFloat(ask[1].(float64))
+					intoSize := askQtyDec.Mul(s.contractSize)
+					askQty = intoSize.String()
+				} else {
+					askPrice = NullPrice
+				}
 			}
-			if ask, ok := message["ask"].(float64); ok {
-				askDec := decimal.NewFromFloat(ask)
-				askPrice = askDec.String()
-			} else {
-				askPrice = NullPrice
-			}
-			if bidqty, ok := message["bidSize"].(float64); ok {
-				bidQtyDec := decimal.NewFromFloat(bidqty)
-				bidQty = bidQtyDec.String()
-			}
-			if askqty, ok := message["askSize"].(float64); ok {
-				askQtyDec := decimal.NewFromFloat(askqty)
-				askQty = askQtyDec.String()
-			}
-
 			s.updateBidData(bidPrice, bidQty, stamp)
 			s.updateAskData(askPrice, askQty, stamp)
-			lastUpdate = time.Now()
-		default:
-			if time.Now().After(lastUpdate.Add(time.Second * 300)) {
-				// 300 sec without updating
-				err := errors.New("reconnect because of time out")
-				*errCh <- err
-				return err
-			}
-			time.Sleep(time.Millisecond * 100)
 		}
 	}
 }
@@ -211,7 +242,7 @@ func huobiTickerSocket(
 	logger.Infof("Huobi %s %s ticker socket connected.\n", symbol, product)
 	w.Conn = conn
 	defer conn.Close()
-	send, err := getHuobiSubscribeMessageForTicker(product, channel, symbol)
+	send, err := getHuobiSubscribeMessageForTicker(channel, symbol)
 	if err != nil {
 		return err
 	}
@@ -247,20 +278,15 @@ func huobiTickerSocket(
 	}
 }
 
-func getHuobiSubscribeMessageForTicker(product, channel, symbol string) ([]byte, error) {
+func getHuobiSubscribeMessageForTicker(channel, symbol string) ([]byte, error) {
 	var buffer bytes.Buffer
-	switch product {
-	case "spot":
-		switch channel {
-		case "ticker":
-			buffer.WriteString("market.")
-			buffer.WriteString(symbol)
-			buffer.WriteString(".bbo")
-		default:
-			return nil, errors.New("not supported channel, cancel socket connection")
-		}
+	switch channel {
+	case "ticker":
+		buffer.WriteString("market.")
+		buffer.WriteString(symbol)
+		buffer.WriteString(".bbo")
 	default:
-		return nil, errors.New("not supported product, cancel socket connection")
+		return nil, errors.New("not supported channel, cancel socket connection")
 	}
 	sub := huobiSubscribeMessage{
 		Sub: buffer.String(),
@@ -270,27 +296,4 @@ func getHuobiSubscribeMessageForTicker(product, channel, symbol string) ([]byte,
 		return nil, err
 	}
 	return message, nil
-}
-
-func (s *StreamTickerBranch) initialWithSpotDetail(product, symbol string) error {
-	switch product {
-	case "spot":
-		client := New("", "", "", false)
-		res, err := client.GetSpotDetail(symbol)
-		if err != nil {
-			return err
-		}
-		if !strings.EqualFold(res.Status, "ok") {
-			return errors.New("return is not ok when intial spot detail")
-		}
-		// 0 => price, 1 => qty
-		s.updateBidData(decimal.NewFromFloat(res.Tick.Bid[0]).String(), decimal.NewFromFloat(res.Tick.Bid[1]).String(), time.UnixMilli(res.Ts))
-		s.updateAskData(decimal.NewFromFloat(res.Tick.Ask[0]).String(), decimal.NewFromFloat(res.Tick.Ask[1]).String(), time.UnixMilli(res.Ts))
-	case "swap":
-		//
-	default:
-		return errors.New("not supported product to initial spot detail")
-	}
-
-	return nil
 }

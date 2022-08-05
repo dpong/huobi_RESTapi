@@ -21,7 +21,7 @@ type PerpsResponse struct {
 	Ts int64 `json:"ts"`
 }
 
-func (p *Client) Swaps(mode string) (*PerpsResponse, error) {
+func (p *Client) Perps(mode string) (*PerpsResponse, error) {
 	params := make(map[string]string)
 	if mode != "" {
 		params["support_margin_mode"] = strings.ToLower(mode)

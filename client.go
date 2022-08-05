@@ -21,11 +21,11 @@ var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
 // Please do not send more than 10 requests per second. Sending requests more frequently will result in HTTP 429 errors.
 type Client struct {
-	key, secret string
-	subaccount  string
-	HTTPC       *http.Client
-	aws         bool
-
+	key, secret        string
+	subaccount         string
+	HTTPC              *http.Client
+	aws                bool
+	AccountID          int
 	spotPrivateChannel *spotPrivateChannelBranch
 }
 
