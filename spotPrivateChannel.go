@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"net/url"
 	"strings"
 	"sync"
@@ -20,6 +21,7 @@ type spotPrivateChannelBranch struct {
 	cancel             *context.CancelFunc
 	httpUpdateInterval int
 	errs               chan error
+	symbols            []string
 	tradeSets          tradeDataMap
 }
 
@@ -76,14 +78,16 @@ func (c *Client) CloseSpotPrivateChannel() {
 	(*c.spotPrivateChannel.cancel)()
 }
 
-func (c *Client) InitSpotPrivateChannel(id int, logger *log.Logger) {
-	c.spotPrivateChannelStream(id, logger)
+// id is the account id huobi requested
+// symbols are batch symbols you want to receive trade report
+func (c *Client) InitSpotPrivateChannel(id int, symbols []string, logger *log.Logger) {
+	c.spotPrivateChannelStream(id, symbols, logger)
 }
 
-func (u *spotPrivateChannelBranch) SpotAccountData() (*GetAccountDataResponse, error) {
-	u.account.RLock()
-	defer u.account.RUnlock()
-	return u.account.Data, u.readerrs()
+func (c *Client) SpotAccountData() (*GetAccountDataResponse, error) {
+	c.spotPrivateChannel.account.RLock()
+	defer c.spotPrivateChannel.account.RUnlock()
+	return c.spotPrivateChannel.account.Data, c.spotPrivateChannel.readerrs()
 }
 
 // err is no trade
@@ -131,12 +135,14 @@ func (u *spotPrivateChannelBranch) insertTrade(input *UserTradeData) {
 	}
 }
 
-func (c *Client) spotPrivateChannelStream(id int, logger *log.Logger) {
+func (c *Client) spotPrivateChannelStream(id int, symbols []string, logger *log.Logger) {
 	u := new(spotPrivateChannelBranch)
 	ctx, cancel := context.WithCancel(context.Background())
 	u.cancel = &cancel
 	u.httpUpdateInterval = 60
 	u.accountID = id
+	u.symbols = symbols
+	u.tradeSets.set = make(map[string][]UserTradeData, 5)
 	u.initialChannels()
 	userData := make(chan map[string]interface{}, 100)
 	// stream user data
@@ -146,7 +152,7 @@ func (c *Client) spotPrivateChannelStream(id int, logger *log.Logger) {
 			case <-ctx.Done():
 				return
 			default:
-				if err := spotUserData(ctx, c.key, c.secret, logger, &userData); err == nil {
+				if err := spotUserData(ctx, c.key, c.secret, symbols, logger, &userData); err == nil {
 					return
 				}
 				time.Sleep(time.Second)
@@ -216,33 +222,115 @@ func (u *spotPrivateChannelBranch) maintainSpotUserData(
 			return nil
 		default:
 			message := <-(*userData)
-			data, ok := message["data"].(map[string]interface{})
+
+			// test
+			fmt.Println(message)
+
+			ch, ok := message["ch"].(string)
 			if !ok {
 				continue
 			}
-			id, ok := data["accountId"].(float64)
-			if !ok {
-				continue
+			switch {
+			case strings.Contains(ch, "accounts.update"):
+				data, ok := message["data"].(map[string]interface{})
+				if !ok {
+					continue
+				}
+				id, ok := data["accountId"].(float64)
+				if !ok {
+					continue
+				}
+				if id != float64(u.accountID) {
+					continue
+				}
+				accountType, ok := data["accountType"].(string)
+				if !ok {
+					continue
+				}
+				balance, ok := data["balance"].(string)
+				if !ok {
+					continue
+				}
+				currency, ok := data["currency"].(string)
+				if !ok {
+					continue
+				}
+				u.updateSpotAccountData(currency, accountType, balance)
+			case strings.Contains(ch, "trade.clearing"):
+				if event, ok := message["eventType"].(string); ok {
+					if event != "trade" {
+						continue
+					}
+				}
+
+				info, ok := message["data"].(map[string]interface{})
+				if !ok {
+					continue
+				}
+
+				data := new(UserTradeData)
+				if oid, ok := info["orderId"].(float64); ok {
+					data.Oid = decimal.NewFromFloat(oid).String()
+				}
+				if symbol, ok := info["symbol"].(string); ok {
+					data.Symbol = symbol
+				}
+				if price, ok := info["tradePrice"].(string); ok {
+					priceDec, _ := decimal.NewFromString(price)
+					data.Price = priceDec
+				}
+				if side, ok := info["orderSide"].(string); ok {
+					data.Side = side
+				}
+				if orderType, ok := info["orderType"].(string); ok {
+					if strings.Contains(orderType, "limit") {
+						data.OrderType = "limit"
+					} else if strings.Contains(orderType, "market") {
+						data.OrderType = "market"
+					}
+				}
+				if strings.EqualFold(data.Side, "buy") && data.OrderType == "market" {
+					// check order value
+					if valueStr, ok := info["orderValue"].(string); ok {
+						value, _ := decimal.NewFromString(valueStr)
+						if data.Price.IsZero() {
+							continue
+						}
+						data.Qty = value.Div(data.Price)
+					}
+				} else {
+					// check order size
+					if sizeStr, ok := info["orderSize"].(string); ok {
+						size, _ := decimal.NewFromString(sizeStr)
+						data.Qty = size
+					}
+				}
+				if agg, ok := info["aggressor"].(bool); ok {
+					if !agg {
+						data.IsMaker = true
+					}
+				}
+				if feeStr, ok := info["transactFee"].(string); ok {
+					fee, _ := decimal.NewFromString(feeStr)
+					data.Fee = fee
+				}
+				if feeAsset, ok := info["feeCurrency"].(string); ok {
+					data.FeeAsset = strings.ToUpper(feeAsset)
+				}
+				if unixTs, ok := info["tradeTime"].(float64); ok {
+					data.TimeStamp = time.UnixMilli(int64(unixTs))
+				}
+
+				u.insertTrade(data)
 			}
-			if id != float64(u.accountID) {
-				continue
-			}
-			accountType, ok := data["accountType"].(string)
-			if !ok {
-				continue
-			}
-			balance, ok := data["balance"].(string)
-			if !ok {
-				continue
-			}
-			currency, ok := data["currency"].(string)
-			if !ok {
-				continue
-			}
-			u.updateSpotAccountData(currency, accountType, balance)
+
 		}
 	}
 }
+
+// type UserTradeData struct {
+// 	TimeStamp time.Time
+// }
 
 func (u *spotPrivateChannelBranch) updateSpotAccountData(currency, accountType, balance string) {
 	u.account.Lock()
@@ -255,9 +343,10 @@ func (u *spotPrivateChannelBranch) updateSpotAccountData(currency, accountType, 
 	}
 }
 
-func spotUserData(ctx context.Context, key, secret string, logger *log.Logger, mainCh *chan map[string]interface{}) error {
-	var w huobiWebsocket
+func spotUserData(ctx context.Context, key, secret string, symbols []string, logger *log.Logger, mainCh *chan map[string]interface{}) error {
+	var w wS
 	var duration time.Duration = 30
+	w.symbols = symbols
 	w.Logger = logger
 	url := "wss://api.huobi.pro/ws/v2"
 	host := "api.huobi.pro"
@@ -269,6 +358,7 @@ func spotUserData(ctx context.Context, key, secret string, logger *log.Logger, m
 	log.Println("Connected:", url)
 	w.Conn = conn
 	defer w.Conn.Close()
+
 	if err := w.Conn.SetReadDeadline(time.Now().Add(time.Second * duration)); err != nil {
 		return err
 	}
@@ -280,37 +370,41 @@ func spotUserData(ctx context.Context, key, secret string, logger *log.Logger, m
 			return err
 		}
 	}
+
+	// make sure subscription all settled in 10 sec
+	go func() {
+		time.Sleep(time.Second * 10)
+		if w.subscribeCheck.receive != w.subscribeCheck.request {
+			w.Conn.SetReadDeadline(time.Now().Add(time.Millisecond * 500))
+		}
+	}()
+
 	for {
 		select {
 		case <-ctx.Done():
-			w.outHuobiErr()
 			message := "Huobi User Data closing..."
 			logger.Warningln(message)
 			return errors.New(message)
 		default:
 			if w.Conn == nil {
-				w.outHuobiErr()
 				message := "Huobi User Data reconnect..."
 				logger.Warningln(message)
 				return errors.New(message)
 			}
 			_, buf, err := w.Conn.ReadMessage()
 			if err != nil {
-				w.outHuobiErr()
 				message := "Huobi User Data reconnect..."
 				logger.Warningln(message)
 				return errors.New(message)
 			}
 			res, err1 := decodingMap(buf, logger)
 			if err1 != nil {
-				w.outHuobiErr()
 				message := "Huobi User Data reconnect..."
 				logger.Warningln(message, err1)
 				return err1
 			}
 			err2 := w.HandleHuobiSpotUserData(&res, mainCh, logger)
 			if err2 != nil {
-				w.outHuobiErr()
 				message := "Huobi User Data reconnect..."
 				logger.Warningln(message, err2)
 				return err2
@@ -357,6 +451,18 @@ func getAuthSubscribeMessage(host, path, key, secret string) ([]byte, error) {
 	return message, nil
 }
 
+func (w *wS) subscribeAccountUpdateEvent() error {
+	if send, err := getSpotAccountUpdateSubMessage(); err != nil {
+		return err
+	} else {
+		if err := w.Conn.WriteMessage(websocket.TextMessage, send); err != nil {
+			return err
+		}
+		w.subscribeCheck.request++
+	}
+	return nil
+}
+
 func getSpotAccountUpdateSubMessage() ([]byte, error) {
 	raw := spotSocketSub{
 		Action: "sub",
@@ -367,6 +473,20 @@ func getSpotAccountUpdateSubMessage() ([]byte, error) {
 		return nil, err
 	}
 	return message, nil
+}
+
+func (w *wS) batchSubscribeTradeEvent(symbols []string) error {
+	for _, symbol := range symbols {
+		if send, err := getSpotTradeSubMessage(symbol); err != nil {
+			return err
+		} else {
+			if err := w.Conn.WriteMessage(websocket.TextMessage, send); err != nil {
+				return err
+			}
+			w.subscribeCheck.request++
+		}
+	}
+	return nil
 }
 
 func getSpotTradeSubMessage(symbol string) ([]byte, error) {
@@ -385,7 +505,7 @@ func getSpotTradeSubMessage(symbol string) ([]byte, error) {
 	return message, nil
 }
 
-func (w *huobiWebsocket) HandleHuobiSpotUserData(res *map[string]interface{}, mainCh *chan map[string]interface{}, logger *log.Logger) error {
+func (w *wS) HandleHuobiSpotUserData(res *map[string]interface{}, mainCh *chan map[string]interface{}, logger *log.Logger) error {
 	action, ok := (*res)["action"].(string)
 	if ok {
 		switch action {
@@ -413,12 +533,11 @@ func (w *huobiWebsocket) HandleHuobiSpotUserData(res *map[string]interface{}, ma
 			}
 			logger.Infof("Huobi user data auth success")
 			// sub account update
-			if send, err := getSpotAccountUpdateSubMessage(); err != nil {
+			if err := w.subscribeAccountUpdateEvent(); err != nil {
 				return err
-			} else {
-				if err := w.Conn.WriteMessage(websocket.TextMessage, send); err != nil {
-					return err
-				}
+			}
+			if err := w.batchSubscribeTradeEvent(w.symbols); err != nil {
+				return err
 			}
 		case "sub":
 			code, okCode := (*res)["code"].(float64)
@@ -428,15 +547,16 @@ func (w *huobiWebsocket) HandleHuobiSpotUserData(res *map[string]interface{}, ma
 			if code != 200 {
 				return errors.New("fail to sub account update on spot user data")
 			}
-			logger.Infof("Huobi user data subscribe to account updating.")
+			if ch, ok := (*res)["ch"].(string); ok {
+				logger.Infof("Huobi private channel subscribed to %s\n", ch)
+				w.subscribeCheck.receive++
+			}
 		case "push":
-			ch, okCh := (*res)["ch"].(string)
+			_, okCh := (*res)["ch"].(string)
 			if !okCh {
 				return errors.New("fail to update push data on spot user data")
 			}
-			if strings.Contains(ch, "accounts.update") {
-				*mainCh <- (*res)
-			}
+			*mainCh <- (*res)
 		default:
 			// debugging
 			logger.Warningln(res)

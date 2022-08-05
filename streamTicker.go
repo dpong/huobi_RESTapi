@@ -186,7 +186,7 @@ func huobiTickerSocket(
 	mainCh *chan map[string]interface{},
 	errCh *chan error,
 ) error {
-	var w huobiWebsocket
+	var w wS
 	var duration time.Duration = 30
 	w.Logger = logger
 	w.OnErr = false
@@ -230,20 +230,14 @@ func huobiTickerSocket(
 		default:
 			_, buf, err := conn.ReadMessage()
 			if err != nil {
-				d := w.outHuobiErr()
-				*mainCh <- d
 				return err
 			}
 			res, err1 := huobiDecodingMap(&buf, logger)
 			if err1 != nil {
-				d := w.outHuobiErr()
-				*mainCh <- d
 				return err1
 			}
 			err2 := w.handleHuobiSocketData(product, &res, mainCh)
 			if err2 != nil {
-				d := w.outHuobiErr()
-				*mainCh <- d
 				return err2
 			}
 			if err := w.Conn.SetReadDeadline(time.Now().Add(time.Second * duration)); err != nil {

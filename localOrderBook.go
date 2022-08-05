@@ -511,12 +511,19 @@ func (o *OrderBookBranch) InitialSwapOrderBook(res *map[string]interface{}) {
 	o.SnapShoted = true
 }
 
-type huobiWebsocket struct {
-	Channel       string
-	OnErr         bool
-	Logger        *log.Logger
-	Conn          *websocket.Conn
-	LastUpdatedId decimal.Decimal
+type wS struct {
+	Channel        string
+	OnErr          bool
+	Logger         *log.Logger
+	Conn           *websocket.Conn
+	LastUpdatedId  decimal.Decimal
+	symbols        []string
+	subscribeCheck subscribeCheck
+}
+
+type subscribeCheck struct {
+	request int
+	receive int
 }
 
 type huobiSubscribeMessage struct {
@@ -528,12 +535,6 @@ type huobiSubscribeMessage struct {
 type huobiSnapShotReqMessage struct {
 	Req string `json:"req"`
 	ID  string `json:"id"`
-}
-
-func (w *huobiWebsocket) outHuobiErr() map[string]interface{} {
-	w.OnErr = true
-	m := make(map[string]interface{})
-	return m
 }
 
 func huobiDecodingMap(message *[]byte, logger *log.Logger) (res map[string]interface{}, err error) {
@@ -562,7 +563,7 @@ func huobiOrderBookSocket(
 	errCh *chan error,
 	refreshCh *chan string,
 ) error {
-	var w huobiWebsocket
+	var w wS
 	var duration time.Duration = 30
 	w.Logger = logger
 	w.OnErr = false
@@ -611,32 +612,24 @@ func huobiOrderBookSocket(
 			}
 		default:
 			if conn == nil {
-				d := w.outHuobiErr()
-				*mainCh <- d
 				message := "Huobi reconnect..."
 				logger.Infoln(message)
 				return errors.New(message)
 			}
 			_, buf, err := conn.ReadMessage()
 			if err != nil {
-				d := w.outHuobiErr()
-				*mainCh <- d
 				message := "Huobi reconnect..."
 				logger.Infoln(message)
 				return errors.New(message)
 			}
 			res, err1 := huobiDecodingMap(&buf, logger)
 			if err1 != nil {
-				d := w.outHuobiErr()
-				*mainCh <- d
 				message := "Huobi reconnect..."
 				logger.Infoln(message, err1)
 				return err1
 			}
 			err2 := w.handleHuobiSocketData(product, &res, mainCh)
 			if err2 != nil {
-				d := w.outHuobiErr()
-				*mainCh <- d
 				message := "Huobi reconnect..."
 				logger.Infoln(message, err2)
 				return err2
@@ -652,21 +645,17 @@ type huobiPing struct {
 	Pong float64 `json:"pong"`
 }
 
-func (w *huobiWebsocket) handleHuobiSocketData(product string, res *map[string]interface{}, mainCh *chan map[string]interface{}) error {
+func (w *wS) handleHuobiSocketData(product string, res *map[string]interface{}, mainCh *chan map[string]interface{}) error {
 	channel, ok := (*res)["ch"].(string)
 	if ok {
 		channelParts := strings.Split(channel, ".")
 		switch channelParts[2] {
 		case "mbp": // spot
 			if st, ok := (*res)["ts"].(float64); !ok {
-				m := w.outHuobiErr()
-				*mainCh <- m
 				return errors.New("got nil when updating event time")
 			} else {
 				stamp := time.UnixMilli(int64(st))
 				if time.Now().After(stamp.Add(time.Second * 5)) {
-					m := w.outHuobiErr()
-					*mainCh <- m
 					return errors.New("websocket data delay more than 5 sec")
 				}
 			}
@@ -676,8 +665,6 @@ func (w *huobiWebsocket) handleHuobiSocketData(product string, res *map[string]i
 				//preId := data["prevSeqNum"].(float64)
 				newID := decimal.NewFromFloat(Id)
 				if newID.LessThan(w.LastUpdatedId) {
-					m := w.outHuobiErr()
-					*mainCh <- m
 					return errors.New("got error when updating lastUpdateId")
 				}
 				w.LastUpdatedId = newID
@@ -690,8 +677,6 @@ func (w *huobiWebsocket) handleHuobiSocketData(product string, res *map[string]i
 				Id := data["id"].(float64)
 				newID := decimal.NewFromFloat(Id)
 				if newID.LessThan(w.LastUpdatedId) {
-					m := w.outHuobiErr()
-					*mainCh <- m
 					return errors.New("got error when updating lastUpdateId")
 				}
 				w.LastUpdatedId = newID
@@ -702,14 +687,11 @@ func (w *huobiWebsocket) handleHuobiSocketData(product string, res *map[string]i
 			_, okd := (*res)["tick"].(map[string]interface{})
 			if okd {
 				if ts, ok := (*res)["ts"].(float64); !ok {
-					m := w.outHuobiErr()
-					*mainCh <- m
 					return errors.New("got no ts when receving bbo data")
 				} else {
 					stamp := time.UnixMilli(int64(ts))
 					now := time.Now()
 					if now.After(stamp.Add(time.Second * 2)) {
-						w.outHuobiErr()
 						err := errors.New("websocket data delay more than 2 sec")
 						return err
 					}
