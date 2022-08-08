@@ -268,7 +268,7 @@ func SpotLocalOrderBook(symbol, depth string, logger *log.Logger) *OrderBookBran
 }
 
 // symbol excample BTC-USDT, depth: 20, 150
-func SwapLocalOrderBook(symbol, depth string, logger *log.Logger) *OrderBookBranch {
+func PerpLocalOrderBook(symbol, depth string, logger *log.Logger) *OrderBookBranch {
 	return LocalOrderBook("swap", symbol, depth, logger)
 }
 

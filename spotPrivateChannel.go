@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"net/url"
 	"strings"
 	"sync"
@@ -143,7 +142,7 @@ func (c *Client) spotPrivateChannelStream(id int, symbols []string, logger *log.
 	u.accountID = id
 	u.symbols = symbols
 	u.tradeSets.set = make(map[string][]UserTradeData, 5)
-	u.initialChannels()
+	u.errs = make(chan error, 5)
 	userData := make(chan map[string]interface{}, 100)
 	// stream user data
 	go func() {
@@ -179,12 +178,12 @@ func (c *Client) spotPrivateChannelStream(id int, symbols []string, logger *log.
 }
 
 func (u *spotPrivateChannelBranch) getAccountSnapShot(client *Client) error {
-	u.account.Lock()
-	defer u.account.Unlock()
 	res, err := client.GetAccountData(u.accountID)
 	if err != nil {
 		return err
 	}
+	u.account.Lock()
+	defer u.account.Unlock()
 	u.account.Data = res
 	return nil
 }
@@ -210,8 +209,6 @@ func (u *spotPrivateChannelBranch) maintainSpotUserData(
 				if err := u.getAccountSnapShot(client); err != nil {
 					u.insertErr(err)
 				}
-			default:
-				time.Sleep(time.Second)
 			}
 		}
 	}()
@@ -220,12 +217,7 @@ func (u *spotPrivateChannelBranch) maintainSpotUserData(
 		case <-ctx.Done():
 			close(u.errs)
 			return nil
-		default:
-			message := <-(*userData)
-
-			// test
-			fmt.Println(message)
-
+		case message := <-(*userData):
 			ch, ok := message["ch"].(string)
 			if !ok {
 				continue
@@ -355,7 +347,7 @@ func spotUserData(ctx context.Context, key, secret string, symbols []string, log
 	if err != nil {
 		return err
 	}
-	log.Println("Connected:", url)
+	logger.Println("Connected:", url)
 	w.Conn = conn
 	defer w.Conn.Close()
 
@@ -577,11 +569,6 @@ func decodingMap(message []byte, logger *log.Logger) (res map[string]interface{}
 		return nil, err
 	}
 	return res, nil
-}
-
-func (u *spotPrivateChannelBranch) initialChannels() {
-	// 5 err is allowed
-	u.errs = make(chan error, 5)
 }
 
 func (u *spotPrivateChannelBranch) insertErr(input error) {

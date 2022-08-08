@@ -27,6 +27,7 @@ type Client struct {
 	aws                bool
 	AccountID          int
 	spotPrivateChannel *spotPrivateChannelBranch
+	perpPrivateChannel *perpPrivateChannelBranch
 }
 
 func New(key, secret, subaccount string, isAws bool) *Client {

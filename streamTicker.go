@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -48,7 +47,6 @@ func localStreamTicker(product, symbol string, logger *log.Logger) *StreamTicker
 	s.cancel = &cancel
 	ticker := make(chan map[string]interface{}, 50)
 	errCh := make(chan error, 5)
-
 	if product == "swap" {
 		client := New("", "", "", false)
 		res, err := client.Perps("")
@@ -58,9 +56,6 @@ func localStreamTicker(product, symbol string, logger *log.Logger) *StreamTicker
 		}
 		for _, item := range res.Data {
 			if item.ContractCode == symbol {
-
-				// test
-				fmt.Println(item)
 				s.contractSize = decimal.NewFromFloat(item.ContractSize)
 			}
 		}

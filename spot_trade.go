@@ -14,7 +14,8 @@ const SpotSellMaker = "sell-limit-maker"
 const SpotSource = "spot-api"
 
 type SpotPlaceOrderResponse struct {
-	Data string `json:"data,omitempty"`
+	Status string `json:"status,omitempty"`
+	Data   string `json:"data,omitempty"`
 }
 type SpotPlaceOrderOpts struct {
 	AccountID     string `json:"account-id"`
