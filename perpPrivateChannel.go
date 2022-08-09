@@ -15,6 +15,8 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// still working on it
+
 type perpPrivateChannelBranch struct {
 	mode               string
 	account            PerpAccountBranch
