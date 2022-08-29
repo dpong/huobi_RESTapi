@@ -230,7 +230,9 @@ func huobiTickerSocket(
 	default:
 		return errors.New("not supported product, cancel socket connection")
 	}
-	conn, _, err := websocket.DefaultDialer.Dial(url, nil)
+	// wait 5 second, if the hand shake fail, will terminate the dail
+	dailCtx, _ := context.WithDeadline(ctx, time.Now().Add(time.Second*5))
+	conn, _, err := websocket.DefaultDialer.DialContext(dailCtx, url, nil)
 	if err != nil {
 		return err
 	}
@@ -254,7 +256,7 @@ func huobiTickerSocket(
 		case err := <-*errCh:
 			return err
 		default:
-			_, buf, err := conn.ReadMessage()
+			_, buf, err := w.Conn.ReadMessage()
 			if err != nil {
 				return err
 			}

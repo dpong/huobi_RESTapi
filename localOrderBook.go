@@ -699,6 +699,23 @@ func (w *wS) handleHuobiSocketData(product string, res *map[string]interface{}, 
 				*mainCh <- *res
 				return nil
 			}
+		case "trade":
+			if tick, ok := (*res)["tick"].(map[string]interface{}); !ok {
+				return errors.New("got no tick when receving trade detail data")
+			} else {
+				if data, ok := tick["data"].([]interface{}); !ok {
+					return errors.New("got no wrong data type when receving trade detail data")
+				} else {
+					for _, da := range data {
+						if trade, ok := da.(map[string]interface{}); !ok {
+							fmt.Println("check, error occured")
+							continue
+						} else {
+							*mainCh <- trade
+						}
+					}
+				}
+			}
 		}
 	}
 	_, okReq := (*res)["rep"].(string)
