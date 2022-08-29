@@ -154,7 +154,7 @@ func huobiPublicTradeSocket(
 	if err != nil {
 		return err
 	}
-	logger.Infof("Huobi %s %s ticker socket connected.\n", symbol, product)
+	logger.Infof("Huobi %s %s trade socket connected.\n", symbol, product)
 	defer conn.Close()
 	w.Conn = conn
 	send, err := getHuobiSubscribeMessageForPublicTrade(channel, symbol)
