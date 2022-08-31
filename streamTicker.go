@@ -47,6 +47,8 @@ func localStreamTicker(product, symbol string, logger *log.Logger) *StreamTicker
 	s.cancel = &cancel
 	ticker := make(chan map[string]interface{}, 50)
 	errCh := make(chan error, 5)
+	// initial data with rest api first
+	s.initialWithSpotDetail(product, symbol)
 	if product == "swap" {
 		client := New("", "", "", false)
 		res, err := client.Perps("")
@@ -293,4 +295,28 @@ func getHuobiSubscribeMessageForTicker(channel, symbol string) ([]byte, error) {
 		return nil, err
 	}
 	return message, nil
+}
+
+func (s *StreamTickerBranch) initialWithSpotDetail(product, symbol string) error {
+	switch product {
+	case "spot":
+		client := New("", "", "", false)
+		res, err := client.GetSpotDetail(symbol)
+		if err != nil {
+			return err
+		}
+		if !strings.EqualFold(res.Status, "ok") {
+			return errors.New("return is not ok when intial spot detail")
+		}
+		// 0 => price, 1 => qty
+		ts := time.UnixMilli(res.Ts)
+		s.updateBidData(decimal.NewFromFloat(res.Tick.Bid[0]).String(), decimal.NewFromFloat(res.Tick.Bid[1]).String(), ts)
+		s.updateAskData(decimal.NewFromFloat(res.Tick.Ask[0]).String(), decimal.NewFromFloat(res.Tick.Ask[1]).String(), ts)
+	case "swap":
+		//
+	default:
+		return errors.New("not supported product to initial spot detail")
+	}
+
+	return nil
 }
