@@ -193,25 +193,25 @@ func (u *spotPrivateChannelBranch) maintainSpotUserData(
 	client *Client,
 	userData *chan map[string]interface{},
 ) error {
-	// get the first snapshot to initial data struct
-	if err := u.getAccountSnapShot(client); err != nil {
-		return err
-	}
-	// update snapshot with steady interval
-	go func() {
-		snap := time.NewTicker(time.Second * time.Duration(u.httpUpdateInterval))
-		defer snap.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-snap.C:
-				if err := u.getAccountSnapShot(client); err != nil {
-					u.insertErr(err)
-				}
-			}
-		}
-	}()
+	// // get the first snapshot to initial data struct
+	// if err := u.getAccountSnapShot(client); err != nil {
+	// 	return err
+	// }
+	// // update snapshot with steady interval
+	// go func() {
+	// 	snap := time.NewTicker(time.Second * time.Duration(u.httpUpdateInterval))
+	// 	defer snap.Stop()
+	// 	for {
+	// 		select {
+	// 		case <-ctx.Done():
+	// 			return
+	// 		case <-snap.C:
+	// 			if err := u.getAccountSnapShot(client); err != nil {
+	// 				u.insertErr(err)
+	// 			}
+	// 		}
+	// 	}
+	// }()
 	for {
 		select {
 		case <-ctx.Done():
