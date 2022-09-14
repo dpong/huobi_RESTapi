@@ -281,22 +281,22 @@ func (u *spotPrivateChannelBranch) maintainSpotUserData(
 						data.OrderType = "market"
 					}
 				}
-				if strings.EqualFold(data.Side, "buy") && data.OrderType == "market" {
-					// check order value
-					if valueStr, ok := info["orderValue"].(string); ok {
-						value, _ := decimal.NewFromString(valueStr)
-						if data.Price.IsZero() {
-							continue
-						}
-						data.Qty = value.Div(data.Price)
-					}
-				} else {
-					// check order size
-					if sizeStr, ok := info["orderSize"].(string); ok {
-						size, _ := decimal.NewFromString(sizeStr)
-						data.Qty = size
-					}
+				// if strings.EqualFold(data.Side, "buy") && data.OrderType == "market" {
+				// 	// check order value
+				// 	if valueStr, ok := info["orderValue"].(string); ok {
+				// 		value, _ := decimal.NewFromString(valueStr)
+				// 		if data.Price.IsZero() {
+				// 			continue
+				// 		}
+				// 		data.Qty = value.Div(data.Price)
+				// 	}
+				// } else {
+				// check order size
+				if sizeStr, ok := info["tradeVolume"].(string); ok {
+					size, _ := decimal.NewFromString(sizeStr)
+					data.Qty = size
 				}
+				// }
 				if agg, ok := info["aggressor"].(bool); ok {
 					if !agg {
 						data.IsMaker = true
