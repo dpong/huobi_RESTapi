@@ -223,31 +223,31 @@ func (u *spotPrivateChannelBranch) maintainSpotUserData(
 				continue
 			}
 			switch {
-			case strings.Contains(ch, "accounts.update"):
-				data, ok := message["data"].(map[string]interface{})
-				if !ok {
-					continue
-				}
-				id, ok := data["accountId"].(float64)
-				if !ok {
-					continue
-				}
-				if id != float64(u.accountID) {
-					continue
-				}
-				accountType, ok := data["accountType"].(string)
-				if !ok {
-					continue
-				}
-				balance, ok := data["balance"].(string)
-				if !ok {
-					continue
-				}
-				currency, ok := data["currency"].(string)
-				if !ok {
-					continue
-				}
-				u.updateSpotAccountData(currency, accountType, balance)
+			// case strings.Contains(ch, "accounts.update"):
+			// 	data, ok := message["data"].(map[string]interface{})
+			// 	if !ok {
+			// 		continue
+			// 	}
+			// 	id, ok := data["accountId"].(float64)
+			// 	if !ok {
+			// 		continue
+			// 	}
+			// 	if id != float64(u.accountID) {
+			// 		continue
+			// 	}
+			// 	accountType, ok := data["accountType"].(string)
+			// 	if !ok {
+			// 		continue
+			// 	}
+			// 	balance, ok := data["balance"].(string)
+			// 	if !ok {
+			// 		continue
+			// 	}
+			// 	currency, ok := data["currency"].(string)
+			// 	if !ok {
+			// 		continue
+			// 	}
+			// 	u.updateSpotAccountData(currency, accountType, balance)
 			case strings.Contains(ch, "trade.clearing"):
 				if event, ok := message["eventType"].(string); ok {
 					if event != "trade" {
